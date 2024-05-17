@@ -6,7 +6,6 @@ from typing import Tuple
 
 DATA = os.path.join(os.path.dirname(__file__), "data")
 
-
 def cifar100(preprocess: ImageClassification, batch_size: int) -> Tuple[DataLoader, DataLoader]:
     test_transforms = transforms.Compose([preprocess])
     train_dataset = datasets.CIFAR100(root=DATA, train=True, download=True, transform=test_transforms)
@@ -16,3 +15,36 @@ def cifar100(preprocess: ImageClassification, batch_size: int) -> Tuple[DataLoad
     test_loader = DataLoader(dataset=test_dataset, batch_size=batch_size, shuffle=False)
 
     return train_loader, test_loader
+
+def cifar10(preprocess: ImageClassification, batch_size: int) -> Tuple[DataLoader, DataLoader]:
+    test_transforms = transforms.Compose([preprocess])
+    train_dataset = datasets.CIFAR10(root=DATA, train=True, download=True, transform=test_transforms)
+    test_dataset = datasets.CIFAR10(root=DATA, train=False, download=True, transform=preprocess)
+
+    train_loader = DataLoader(dataset=train_dataset, batch_size=batch_size, shuffle=True)
+    test_loader = DataLoader(dataset=test_dataset, batch_size=batch_size, shuffle=False)
+
+    return train_loader, test_loader
+
+def fashionMNIST(preprocess: ImageClassification, batch_size: int) -> Tuple[DataLoader, DataLoader]:
+    test_transforms = transforms.Compose([preprocess])
+    train_dataset = datasets.FashionMNIST(root=DATA, train=True, download=True, transform=test_transforms)
+    test_dataset = datasets.FashionMNIST(root=DATA, train=False, download=True, transform=preprocess)
+
+    train_loader = DataLoader(dataset=train_dataset, batch_size=batch_size, shuffle=True)
+    test_loader = DataLoader(dataset=test_dataset, batch_size=batch_size, shuffle=False)
+
+    return train_loader, test_loader
+
+
+LOADER = {
+    "cifar100": cifar100,
+    "cifar10": cifar10,
+    "fashionMNIST": fashionMNIST,
+}
+
+def loader(dataset: str, preprocess: ImageClassification, batch_size: int) -> Tuple[DataLoader, DataLoader]:
+    return LOADER[dataset](preprocess, batch_size)
+
+
+

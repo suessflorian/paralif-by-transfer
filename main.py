@@ -11,12 +11,9 @@ parser = argparse.ArgumentParser(description="Exploring CIFAR-100 S-NN models")
 subparsers = parser.add_subparsers(dest="command", help="sub-command help")
 
 train_parser = subparsers.add_parser("train", help="training models")
-train_parser.add_argument(
-    "--epochs", type=int, default=200, help="number of epochs to train for"
-)
-train_parser.add_argument(
-    "--batch", type=int, default=64, help="input batch size for training"
-)
+train_parser.add_argument("--epochs", type=int, default=200, help="number of epochs to train for")
+train_parser.add_argument("--batch", type=int, default=64, help="input batch size for training")
+train_parser.add_argument("--dataset", type=str, default="cifar100", help="dataset to train for")
 train_parser.add_argument("--lr", type=float, default=0.001, help="learning rate")
 train_parser.add_argument("--model", type=str, default="resnet18", help="the architecture")
 train_parser.add_argument("--device", type=str, default="mps", help="device to lay tensor work over")
@@ -31,6 +28,7 @@ args = parser.parse_args()
 def train(
     model: torch.nn.Module,
     name: str,
+    dataset: str,
     criterion: Callable,
     train_loader: DataLoader,
     test_loader: DataLoader,
@@ -47,6 +45,7 @@ def train(
             if accuracy >= best_accuracy:
                 checkpoint.cache(
                     model,
+                    dataset,
                     checkpoint.Metadata(
                         name=name, epoch=i + metadata.epoch, accuracy=best_accuracy, loss=best_loss
                     ),
@@ -89,10 +88,10 @@ if not args.command:
     parser.print_help()
     raise ValueError("no command specified")
 elif args.command == "train":
-    model, preprocess = models.resnet(args.model)
+    model, preprocess = models.resnet(args.model, args.dataset)
     model.to(args.device)
 
-    model, metadata = checkpoint.load(model, args.model)
+    model, metadata = checkpoint.load(model, args.model, args.dataset)
 
     criterion = torch.nn.CrossEntropyLoss()
     optimizer = torch.optim.SGD(model.parameters(), lr=args.lr, momentum=0.9, weight_decay=1e-4)
@@ -101,6 +100,7 @@ elif args.command == "train":
     train(
         model,
         args.model,
+        args.dataset,
         criterion,
         train_loader,
         test_loader,
@@ -110,13 +110,13 @@ elif args.command == "train":
         metadata,
     )
 elif args.command == "test":
-    model, preprocess = models.resnet(args.model)
+    model, preprocess = models.resnet(args.model, args.dataset)
     model.to(args.device)
 
-    model, metadata = checkpoint.load(model, args.model)
+    model, metadata = checkpoint.load(model, args.model, args.dataset)
 
     criterion = torch.nn.CrossEntropyLoss()
-    train_loader, test_loader = data.cifar100(preprocess, 64)
+    train_loader, test_loader = data.loader(args.dataset, preprocess, 64)
 
     loss, accuracy = evaluate(
         model,

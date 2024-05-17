@@ -1,23 +1,35 @@
 import torch
 from torchvision.models import ResNet, resnet18, ResNet18_Weights, resnet50, ResNet50_Weights
 from torchvision.models.resnet import ImageClassification
-from typing import Tuple
+from typing import Tuple, Callable
 from enum import Enum, auto
 from tabulate import tabulate
 
+def hone(classes: int) -> Callable[[ResNet], ResNet]:
+    def focused(model: ResNet) -> ResNet:
+        ins = model.fc.in_features
+        model.fc = torch.nn.Linear(ins, classes)
+        return model
+    return focused
 
-def resnet(config: str) -> Tuple[ResNet, ImageClassification]:
+TASK = {
+    "cifar100": hone(100),
+    "cifar10": hone(10),
+    "fashionMNIST": hone(10),
+}
+
+def resnet(config: str, dataset: str) -> Tuple[ResNet, ImageClassification]:
     print(f"...configuration chosen: {config}")
     if config == "resnet18":
         weights = ResNet18_Weights.DEFAULT
         model = resnet18(weights=weights)
         model = freeze(model, depth=FreezeDepth.LAYER3)
-        return cifar100(model), weights.transforms()
+        return TASK[dataset](model), weights.transforms()
     if config == "resnet50":
         weights = ResNet50_Weights.DEFAULT
         model = resnet50(weights=weights)
         model = freeze(model, depth=FreezeDepth.LAYER3)
-        return cifar100(model), weights.transforms()
+        return TASK[dataset](model), weights.transforms()
     else:
         raise ValueError(f"Unknown config: {config}")
 
@@ -64,15 +76,4 @@ def freeze(model: ResNet, depth: FreezeDepth = FreezeDepth.ALL) -> ResNet:
     print(tabulate(table, headers=headers))
     print(f"==> Total parameters: {total_params}")
     
-    return model
-
-
-def cifar100(model: ResNet) -> ResNet:
-    ins = model.fc.in_features
-    model.fc = torch.nn.Linear(ins, 100)
-    return model
-
-def fashionMNIST(model: ResNet) -> ResNet:
-    ins = model.fc.in_features
-    model.fc = torch.nn.Linear(ins, 10)
     return model

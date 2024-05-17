@@ -14,17 +14,17 @@ class Metadata:
     loss: float
 
 
-def cache(model: torch.nn.Module, metadata: Metadata):
+def cache(model: torch.nn.Module, dataset: str, metadata: Metadata):
     checkpoint = {
         "state_dict": model.state_dict(),
         "metadata": metadata,
     }
-    torch.save(checkpoint, f"{CACHE}/{metadata.name}-checkpoint.pth")
+    torch.save(checkpoint, f"{CACHE}/{dataset}-{metadata.name}-checkpoint.pth")
     print("-> checkpoint saved")
 
 
-def load(model: torch.nn.Module, name: str) -> Tuple[torch.nn.Module, Metadata]:
-    path = f"{CACHE}/{name}-checkpoint.pth"
+def load(model: torch.nn.Module, name: str, dataset: str) -> Tuple[torch.nn.Module, Metadata]:
+    path = f"{CACHE}/{dataset}-{name}-checkpoint.pth"
     if not os.path.exists(path):
         return model, Metadata(name, 0, 0, float("inf"))
 
