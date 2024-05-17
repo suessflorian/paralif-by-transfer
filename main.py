@@ -17,9 +17,13 @@ train_parser.add_argument(
 train_parser.add_argument(
     "--batch", type=int, default=64, help="input batch size for training"
 )
-train_parser.add_argument("--lr", type=float, default=0.1, help="learning rate")
+train_parser.add_argument("--lr", type=float, default=0.001, help="learning rate")
 train_parser.add_argument("--model", type=str, default="resnet18", help="the architecture")
 train_parser.add_argument("--device", type=str, default="mps", help="device to lay tensor work over")
+
+test_parser = subparsers.add_parser("test", help="testing models")
+test_parser.add_argument("--model", type=str, default="resnet18", help="the architecture")
+test_parser.add_argument("--device", type=str, default="mps", help="device to lay tensor work over")
 
 args = parser.parse_args()
 
@@ -65,34 +69,34 @@ def evaluate(
     device: str = "cpu",
 ) -> Tuple[float, float]:
     model.eval()
-    loss, correct, total = 0, 0, 0
+    total_loss, correct, total = 0, 0, 0
     with torch.no_grad():
         for images, labels in tqdm(data_loader, desc="Evaluation", unit="batch"):
             images, labels = images.to(device), labels.to(device)
             outputs = model(images)
             loss = criterion(outputs, labels)
-            loss += loss.item()
+            total_loss += loss.item()
             _, predicted = outputs.max(1)
             total += labels.size(0)
             correct += predicted.eq(labels).sum().item()
 
-    loss = loss / len(data_loader)
+    average_loss = total_loss / len(data_loader)
     accuracy = correct / total
-    return loss, accuracy
+    return average_loss, accuracy
 
 
 if not args.command:
     parser.print_help()
     raise ValueError("no command specified")
 elif args.command == "train":
-    model = models.resnet(args.model)
+    model, preprocess = models.resnet(args.model)
     model.to(args.device)
 
     model, metadata = checkpoint.load(model, args.model)
 
     criterion = torch.nn.CrossEntropyLoss()
     optimizer = torch.optim.SGD(model.parameters(), lr=args.lr, momentum=0.9, weight_decay=1e-4)
-    train_loader, test_loader = data.cifar100(args.batch)
+    train_loader, test_loader = data.cifar100(preprocess, args.batch)
 
     train(
         model,
@@ -105,5 +109,22 @@ elif args.command == "train":
         args.device,
         metadata,
     )
+elif args.command == "test":
+    model, preprocess = models.resnet(args.model)
+    model.to(args.device)
+
+    model, metadata = checkpoint.load(model, args.model)
+
+    criterion = torch.nn.CrossEntropyLoss()
+    train_loader, test_loader = data.cifar100(preprocess, 64)
+
+    loss, accuracy = evaluate(
+        model,
+        criterion,
+        test_loader,
+        args.device,
+    )
+
+    print(f"Epoch: {metadata.epoch}, Loss: {loss}, Accuracy: {accuracy}")
 else:
     raise ValueError("invalid command")
