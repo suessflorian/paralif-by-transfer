@@ -95,7 +95,7 @@ elif args.command == "train":
 
     criterion = torch.nn.CrossEntropyLoss()
     optimizer = torch.optim.SGD(model.parameters(), lr=args.lr, momentum=0.9, weight_decay=1e-4)
-    train_loader, test_loader = data.cifar100(preprocess, args.batch)
+    train_loader, test_loader = data.loader(args.dataset, preprocess, args.batch)
 
     train(
         model,

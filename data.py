@@ -27,9 +27,11 @@ def cifar10(preprocess: ImageClassification, batch_size: int) -> Tuple[DataLoade
     return train_loader, test_loader
 
 def fashionMNIST(preprocess: ImageClassification, batch_size: int) -> Tuple[DataLoader, DataLoader]:
-    test_transforms = transforms.Compose([preprocess])
+    test_transforms = transforms.Compose([transforms.Grayscale(num_output_channels=3), preprocess])
+    train_transforms = transforms.Compose([transforms.Grayscale(num_output_channels=3), preprocess])
+
     train_dataset = datasets.FashionMNIST(root=DATA, train=True, download=True, transform=test_transforms)
-    test_dataset = datasets.FashionMNIST(root=DATA, train=False, download=True, transform=preprocess)
+    test_dataset = datasets.FashionMNIST(root=DATA, train=False, download=True, transform=train_transforms)
 
     train_loader = DataLoader(dataset=train_dataset, batch_size=batch_size, shuffle=True)
     test_loader = DataLoader(dataset=test_dataset, batch_size=batch_size, shuffle=False)
@@ -45,6 +47,4 @@ LOADER = {
 
 def loader(dataset: str, preprocess: ImageClassification, batch_size: int) -> Tuple[DataLoader, DataLoader]:
     return LOADER[dataset](preprocess, batch_size)
-
-
 
