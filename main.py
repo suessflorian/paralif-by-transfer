@@ -5,6 +5,7 @@ import checkpoint
 import torch
 import data
 import attacks
+import results
 import argparse
 from typing import Tuple, Callable
 from torch.utils.data import DataLoader
@@ -40,9 +41,12 @@ attack_parser.add_argument("--lif", action="store_true", help="the lif variant o
 attack_parser.add_argument("--paralif", action="store_true", help="the paralif variant of the model")
 attack_parser.add_argument("--attack", type=str, default="fgsm", help="the type of attack to perform")
 
+results_parser = subparsers.add_parser("results", help="graphs of robustness test results")
+results_parser.add_argument("--attack", type=str, default="FGSM", help="which attack robustness results graphed")
+
 args = parser.parse_args()
 
-if args.lif and args.paralif:
+if args.command != "results" and (args.lif and args.paralif):
     raise ValueError("cannot convert to both LIF and ParaLIF... abort")
 
 def train(
@@ -194,6 +198,8 @@ elif args.command == "attack":
         optimizer,
         test_loader,
     )
+elif args.command == "results":
+    results.plot(args.attack)
 
 else:
     raise ValueError("invalid command")

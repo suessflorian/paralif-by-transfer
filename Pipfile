@@ -10,6 +10,7 @@ tqdm = "*"
 tabulate = "*"
 snntorch = "*"
 adversarial-robustness-toolbox = "*"
+matplotlib = "*"
 
 [dev-packages]
 black = "*"
