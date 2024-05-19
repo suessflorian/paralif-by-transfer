@@ -15,7 +15,7 @@ parser = argparse.ArgumentParser(description="Exploring CIFAR-100 S-NN models")
 subparsers = parser.add_subparsers(dest="command", help="sub-command help")
 
 train_parser = subparsers.add_parser("train", help="training models")
-train_parser.add_argument("--epochs", type=int, default=200, help="number of epochs to train for")
+train_parser.add_argument("--epochs", type=int, default=5, help="number of epochs to train for")
 train_parser.add_argument("--batch", type=int, default=64, help="input batch size for training")
 train_parser.add_argument("--dataset", type=str, default="cifar100", help="dataset to train for")
 train_parser.add_argument("--lr", type=float, default=0.001, help="learning rate")
@@ -79,6 +79,17 @@ def train(
             optimizer.zero_grad()
             loss.backward()
             optimizer.step()
+    loss, accuracy = evaluate(model, criterion, test_loader, device)
+    if accuracy >= best_accuracy:
+        checkpoint.cache(
+            model,
+            dataset,
+            checkpoint.Metadata(
+                name=name, epoch=epochs + metadata.epoch, accuracy=best_accuracy, loss=best_loss
+            ),
+            variant,
+        )
+    print(f"Epoch: {epochs + metadata.epoch}, Loss: {loss}, Accuracy: {accuracy}")
 
 
 def evaluate(

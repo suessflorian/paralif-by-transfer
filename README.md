@@ -8,8 +8,10 @@ ResNet-18 is more for quick indication of progress really, **ResNet-50** is a mo
 - **ParaLIF**: A variant similar to LIF, where decoder neurons are Parallel Leaky Integrate-and-Fire (ParaLIF) neurons. Implementation of the neuron is pulled [from here](https://github.com/NECOTIS/Parallelizable-Leaky-Integrate-and-Fire-Neuron) and lives copied in `paralif.py`.
 
 ### Methodology
-- We transfer model weights learnt via heavily trained on ImageNet via adopting [pre-trained models](https://pytorch.org/vision/stable/models.html).
+- We fix the random seed for reproducable training.
+- We transfer model weights that were learnt when heavily trained on ImageNet via adopting [pre-trained models](https://pytorch.org/vision/stable/models.html).
     - See [ImageNet performance here](https://pytorch.org/vision/stable/models.html#table-of-all-available-classification-weights).
+- We take the preprocessing done to ImageNet images and apply them to the images in our specific datasets.
 - We identify the 4 residual layers of ResNet as candidate "encoder depths". Initial depth is known to contain "low-level" features and as the depth progresses, features become more "specialisd"/"high-level" for a task.
 - We **freeze** the model up to a depth, by prohibiting a layed computation graph overtop of any frozen layers.
     - Decided to freeze up to depth 3, as we want to fine-tune only "high-level" features.
@@ -26,25 +28,25 @@ _The <X, Y> represents how long the training process took; on continuous model f
 
 ### CIFAR-10
 
-| Variant  \ Architecture | ResNet 18 | ResNet 50 |
-|--------------------------|-----------|-----------|
-| Default                  |          %92.1 _<5>_ |          %94.1 _<5>_ |
-| LIF                      |          %92.2 _<5,5>_|       %94.4 _<5,5>_|
-| ParaLIF                  |          %61.0 _<5,20>_|      %92.2 _<5,5>_|
+| Variant  | ResNet-18       | ResNet-50      |
+|-----------|-----------------|------------------
+| Default  | %92.1 _<5>_     |  %94.1 _<5>_   |
+| LIF      | %92.2 _<5,5>_   |  %94.4 _<5,5>_ |
+| ParaLIF  | %61.0 _<5,20>_  |  %92.2 _<5,5>_ |
 
 ### CIFAR-100
-| Variant  \ Architecture | ResNet 18 | ResNet 50 |
-|--------------------------|-----------|-----------|
-| Default                  |       %75.1 _<25>_    |        %79.1 _<70>_   |
-| LIF                      |          |       |
-| ParaLIF                  |          |          |
+| Variant  | ResNet-18       | ResNet-50      |
+|-----------|-----------------|------------------
+| Default  | %75.1 _<25>_    |  %79.1 _<70>_  |
+| LIF      | %71.77 _<25,5>_ |  %TBD _<70,5>_ |
+| ParaLIF  | %TBD   _<25,5>_ |  %TBD  _<70,5>_|
 
 ### Fashion-MNIST
-| Variant  \ Architecture | ResNet 18 | ResNet 50 |
-|--------------------------|-----------|-----------|
-| Default                  |           |          |
-| LIF                      |          |       |
-| ParaLIF                  |          |       |
+| Variant  | ResNet-18       | ResNet-50      |
+|-----------|-----------------|------------------
+| Default  | %93.4 _<20>_    |  %? _<5>_  |
+| LIF      | %93.5 _<10,10>_ |  %TBD _<5,5>_   |
+| ParaLIF  | %75.2 _<10,5>_  |  %TBD _<5,5>_ |
 
 ## Robustness Measures
 As this is where our focus predominately lies, we provide a pipeline of well known attacks at various intensities and contrast measure robustness.
