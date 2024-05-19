@@ -1,16 +1,7 @@
-# ResNet Architectures/Variants Assessed
-
-| Variant  | Architecture | Description                                       |
-|----------|--------------|---------------------------------------------------|
-| Default  | ResNet 18    | Standard ResNet-18 architecture.                  |
-| Default  | ResNet 50    | Standard ResNet-50 architecture.                  |
-| LIF      | ResNet 18    | ResNet-18 architecture with Leaky Integrate-and-Fire (LIF) neurons. |
-| LIF      | ResNet 50    | ResNet-50 architecture with Leaky Integrate-and-Fire (LIF) neurons. |
-| ParaLIF  | ResNet 18    | ResNet-18 architecture with Parallel Leaky Integrate-and-Fire (ParaLIF) neurons. |
-| ParaLIF  | ResNet 50    | ResNet-50 architecture with Parallel Leaky Integrate-and-Fire (ParaLIF) neurons. |
+# Spiking ResNet Architectures/Variants Re: Advaserial Robustness
 
 ## Descriptions
-ResNet-18 for quick indication of progress really, **ResNet-50** is the true benchmark we should be looking at.
+ResNet-18 is more for quick indication of progress really, **ResNet-50** is a more interesting benchmark.
 
 - **Default**: The standard architecture of ResNet without any modifications.
 - **LIF**: An architecture variant where decoder neurons are replaced with Leaky Integrate-and-Fire (LIF) neurons.
@@ -24,12 +15,34 @@ ResNet-18 for quick indication of progress really, **ResNet-50** is the true ben
 - At some point, we then branch off of this model to either a *LIF* or *ParaLIF* variant, where we replace the model decoder part into either a LIF or ParaLIF part.
 - We train via normal backpropogation through time with fixed number of steps of the observation window at 20.
 
-## Performance on CIFAR-10
+## Performance
+_The (@X, @Y) represents how long the training process took; on continuous model for X epochs, and Y epochs on the branched LIF/ParaLIF model_.
+
+- We do have checkpoint files for everything, so these are all readily verifiable.
+- _Coming soon_, for branched ResNet's (LIF/ParaLIF) variants, we're also interested in the standard deviation of all results.
+    - This is will be found via setting manual seeds (see [`torch.manual_seed`](https://pytorch.org/docs/stable/generated/torch.manual_seed.html))
+
+### CIFAR-10
+
 | Variant  \ Architecture | ResNet 18 | ResNet 50 |
 |--------------------------|-----------|-----------|
 | Default                  |          %92.1 (@5) |          %94.1 (@5) |
 | LIF                      |          %92.2 (@5, @5)|       %94.4 (@5, @5)|
 | ParaLIF                  |          %61.0 (@5, @20)|          (@5, @5) |
 
-_The (@X, @Y) represents how long the training process took; on continous model for X epochs, and & Y epochs on the branched LIF/ParaLIF model_.
+### CIFAR-100
+| Variant  \ Architecture | ResNet 18 | ResNet 50 |
+|--------------------------|-----------|-----------|
+| Default                  |           |           |
+| LIF                      |          |       |
+| ParaLIF                  |          |          |
 
+### Fashion-MNIST
+| Variant  \ Architecture | ResNet 18 | ResNet 50 |
+|--------------------------|-----------|-----------|
+| Default                  |           |          |
+| LIF                      |          |       |
+| ParaLIF                  |          |       |
+
+## Robustness Measures
+As this is where our focus predominately lies, we provide a pipeline of well known attacks at various intensities and contrast measure robustness.
