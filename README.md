@@ -9,6 +9,7 @@ ResNet-18 is more for quick indication of progress really, **ResNet-50** is a mo
 
 ### Methodology
 - We fix the random seed for reproducable training.
+- We fix the loss criterion to be the cross entropy loss (_this is only important as whitebox attacks are wrt. the optimizer used_).
 - We transfer model weights that were learnt when heavily trained on ImageNet via adopting [pre-trained models](https://pytorch.org/vision/stable/models.html).
     - See [ImageNet performance here](https://pytorch.org/vision/stable/models.html#table-of-all-available-classification-weights).
 - We take the preprocessing done to ImageNet images and apply them to the images in our specific datasets.
@@ -44,9 +45,9 @@ _The <X, Y> represents how long the training process took; on continuous model f
 ### Fashion-MNIST
 | Variant  | ResNet-18       | ResNet-50      |
 |-----------|-----------------|------------------
-| Default  | %93.4 _<20>_    |  %? _<5>_  |
-| LIF      | %93.5 _<10,10>_ |  %TBD _<5,5>_   |
-| ParaLIF  | %75.2 _<10,5>_  |  %TBD _<5,5>_ |
+| Default  | %93.4 _<20>_    |  %93.4 _<10>_  |
+| LIF      | %93.5 _<10,10>_ |  %93 _<10,5>_   |
+| ParaLIF  | %75.2 _<10,5>_  |  %TBD _<10,5>_ |
 
 ## Robustness Measures
 As this is where our focus predominately lies, we provide a pipeline of well known attacks at various intensities and contrast measure robustness.
