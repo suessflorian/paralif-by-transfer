@@ -1,4 +1,6 @@
 # Spiking ResNet Architectures/Variants Re: Advaserial Robustness
+We want to know the robustness characteristics of LIF/ParaLIF based neurons. This study looks at utility of adopting ParaLIF/LIF for the decoder stage of a ResNet.
+We heavily employ transfer learning techniques alongsie an ANN-SNN conversion tactic to produce higher performing hybrid ANN/SNN models.
 
 ## Descriptions
 ResNet-18 is more for quick indication of progress really, **ResNet-50** is a more interesting benchmark.
