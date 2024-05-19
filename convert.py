@@ -1,10 +1,29 @@
 import torch.nn as nn
 import snntorch as snn
+import torch
+import paralif
 from snntorch import spikegen
 from torchvision.models import ResNet
 
+class ParaLIFResNetDecoder(nn.Module):
+    def __init__(self, model: ResNet, num_classes: int):
+        super(ParaLIFResNetDecoder, self).__init__()
+        self.encoder = model
+        fm = self.encoder.fc.in_features
+        self.encoder.fc = nn.Identity()
+
+        self.steps = 20
+        self.paralif = paralif.ParaLIF(fm, num_classes, "mps", "SB", tau_mem=0.02, tau_syn=0.02)
+
+    def forward(self, x):
+        x = self.encoder(x)
+        train = spikegen.rate(x, num_steps=self.steps)
+        train = torch.swapaxes(train, 0, 1)
+        x = self.paralif(train)
+        return torch.mean(x,1)
+
 class LIFResNetDecoder(nn.Module):
-    def __init__(self, model: ResNet, num_classes=100):
+    def __init__(self, model: ResNet, num_classes: int):
         super(LIFResNetDecoder, self).__init__()
         self.encoder = model
         fm = self.encoder.fc.in_features
@@ -34,14 +53,28 @@ class LIFResNetDecoder(nn.Module):
         self.lif.to(device)
         return self
 
-def convert(model: ResNet | LIFResNetDecoder, dataset: str) -> LIFResNetDecoder:
-    if isinstance(model, ResNet):
-        if dataset == "cifar10":
-            return LIFResNetDecoder(model, num_classes=10)
-        elif dataset == "cifar100":
-            return LIFResNetDecoder(model, num_classes=100)
-        elif dataset == "fashionMNIST":
-            return LIFResNetDecoder(model, num_classes=10)
-        else:
-            raise ValueError(f"Unknown dataset: {dataset}")
+def convert(model: ResNet | LIFResNetDecoder | ParaLIFResNetDecoder, dataset: str, dest: str = "LIF") -> LIFResNetDecoder | ParaLIFResNetDecoder:
+    if dest == "LIF":
+        if isinstance(model, ResNet):
+            if dataset == "cifar10":
+                return LIFResNetDecoder(model, num_classes=10)
+            elif dataset == "cifar100":
+                return LIFResNetDecoder(model, num_classes=100)
+            elif dataset == "fashionMNIST":
+                return LIFResNetDecoder(model, num_classes=10)
+            else:
+                raise ValueError(f"Unknown dataset: {dataset}")
+    elif dest == "ParaLIF":
+        if isinstance(model, ResNet):
+            if dataset == "cifar10":
+                return ParaLIFResNetDecoder(model, num_classes=10)
+            elif dataset == "cifar100":
+                return ParaLIFResNetDecoder(model, num_classes=100)
+            elif dataset == "fashionMNIST":
+                return ParaLIFResNetDecoder(model, num_classes=10)
+            else:
+                raise ValueError(f"Unknown dataset: {dataset}")
+    else:
+        raise ValueError(f"Unknown conversion destination: {dest}")
+
     return model

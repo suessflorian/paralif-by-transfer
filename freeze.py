@@ -1,8 +1,7 @@
 from torchvision.models import ResNet
 from enum import Enum, auto
 from tabulate import tabulate
-
-from convert import LIFResNetDecoder
+from convert import LIFResNetDecoder, ParaLIFResNetDecoder
 
 class Depth(Enum):
     NONE = auto()
@@ -11,13 +10,11 @@ class Depth(Enum):
     LAYER3 = auto()
     ALL = auto()
 
-def freeze(model: ResNet | LIFResNetDecoder, depth: Depth = Depth.ALL) -> ResNet | LIFResNetDecoder:
+def freeze(model: ResNet | LIFResNetDecoder | ParaLIFResNetDecoder, depth: Depth = Depth.ALL) -> ResNet | LIFResNetDecoder | ParaLIFResNetDecoder:
     if isinstance(model, ResNet):
         return resnet(model, depth)
-    elif isinstance(model, LIFResNetDecoder):
-        # NOTE: we freeze the entire encoder when encountering the LIFResNetDecoder
-        for param in model.encoder.parameters():
-            param.requires_grad = False
+    elif isinstance(model, LIFResNetDecoder) or isinstance(model, ParaLIFResNetDecoder):
+        model.encoder = resnet(model.encoder, depth=Depth.LAYER3)
         return model
     else:
         raise ValueError(f"cannot freeze type {type(model).__name__}")

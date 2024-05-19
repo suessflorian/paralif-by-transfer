@@ -21,12 +21,15 @@ train_parser.add_argument("--dataset", type=str, default="cifar100", help="datas
 train_parser.add_argument("--lr", type=float, default=0.001, help="learning rate")
 train_parser.add_argument("--model", type=str, default="resnet18", help="the architecture")
 train_parser.add_argument("--device", type=str, default="mps", help="device to lay tensor work over")
-train_parser.add_argument("--convert", type=bool, default=False, help="if the model should be converted to snn")
+train_parser.add_argument("--lif", action="store_true", help="if the model should be converted a lif decoder variant")
+train_parser.add_argument("--paralif", action="store_true", help="if the model should be converted to a paralif decoder variant")
 
 test_parser = subparsers.add_parser("test", help="testing models")
 test_parser.add_argument("--model", type=str, default="resnet18", help="the architecture")
 test_parser.add_argument("--device", type=str, default="mps", help="device to lay tensor work over")
 test_parser.add_argument("--dataset", type=str, default="cifar100", help="dataset to train for")
+test_parser.add_argument("--lif", action="store_true", help="if the model should be converted a lif decoder variant")
+test_parser.add_argument("--paralif", action="store_true", help="if the model should be converted to a paralif decoder variant")
 
 args = parser.parse_args()
 
@@ -34,12 +37,12 @@ def train(
     model: torch.nn.Module,
     name: str,
     dataset: str,
-    converted: bool,
     criterion: Callable,
     train_loader: DataLoader,
     test_loader: DataLoader,
     optimizer: torch.optim.Optimizer,
     epochs: int,
+    variant: str = "",
     device: str = "cpu",
     metadata: checkpoint.Metadata = checkpoint.Metadata("resnet18", 0, 0, float("inf")),
 ):
@@ -52,10 +55,10 @@ def train(
                 checkpoint.cache(
                     model,
                     dataset,
-                    converted,
                     checkpoint.Metadata(
                         name=name, epoch=i + metadata.epoch, accuracy=best_accuracy, loss=best_loss
                     ),
+                    variant,
                 )
             print(f"Epoch: {i + metadata.epoch}, Loss: {loss}, Accuracy: {accuracy}")
         for images, labels in tqdm(train_loader, desc="Training", unit="batch"):
@@ -96,15 +99,17 @@ if not args.command:
     raise ValueError("no command specified")
 elif args.command == "train":
     model, preprocess = models.resnet(args.model, args.dataset)
-    loaded, vanilla, metadata = checkpoint.load(model, args.model, args.dataset, converted=False)
+    loaded, vanilla, metadata = checkpoint.load(model, args.model, args.dataset)
 
-    if args.convert:
+    if args.lif or args.paralif:
         if not loaded:
             raise ValueError("must train vanilla model first... abort")
-        model = convert.convert(vanilla, args.dataset)
+        model = convert.convert(vanilla, args.dataset, dest="LIF" if args.lif else "ParaLIF")
         # NOTE: check if we already have a converted model checkpointed ready to continue on
-        _, model, metadata = checkpoint.load(model, args.model, args.dataset, converted=True)
+        loaded, model, metadata = checkpoint.load(model, args.model, args.dataset, variant="LIF" if args.lif else "ParaLIF")
+        print("training LIF decoder model...")
     else:
+        print("training vanilla model...")
         model = vanilla
 
     model = freeze.freeze(model, depth=freeze.Depth.LAYER3)
@@ -118,25 +123,23 @@ elif args.command == "train":
         model,
         args.model,
         args.dataset,
-        args.convert,
         criterion,
         train_loader,
         test_loader,
         optimizer,
         args.epochs,
+        "LIF" if args.lif else "ParaLIF" if args.paralif else "",
         args.device,
         metadata,
     )
 elif args.command == "test":
     model, preprocess = models.resnet(args.model, args.dataset)
-    if args.convert:
-        model = convert.convert(model, args.dataset)
-    loaded, model, metadata = checkpoint.load(model, args.model, args.dataset, converted=args.convert)
+    if args.lif or args.paralif:
+        model = convert.convert(model, args.dataset, dest="LIF" if args.lif else "ParaLIF")
+    loaded, model, metadata = checkpoint.load(model, args.model, args.dataset, variant="LIF" if args.lif else "ParaLIF" if args.paralif else "")
 
     if not loaded:
         raise ValueError(f"no trained {args.model} for {args.dataset}... abort")
-
-    model = freeze.freeze(model, depth=freeze.Depth.ALL)
     model.to(args.device)
 
     criterion = torch.nn.CrossEntropyLoss()

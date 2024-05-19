@@ -1,6 +1,6 @@
 import torch
 import os
-from convert import LIFResNetDecoder
+from convert import LIFResNetDecoder, ParaLIFResNetDecoder
 from dataclasses import dataclass
 from typing import Tuple
 from torchvision.models import ResNet
@@ -16,22 +16,22 @@ class Metadata:
     loss: float
 
 
-def cache(model: torch.nn.Module, dataset: str, converted: bool, metadata: Metadata):
+def cache(model: torch.nn.Module, dataset: str, metadata: Metadata, variant: str = ""):
     checkpoint = {
         "state_dict": model.state_dict(),
         "metadata": metadata,
     }
     path = f"{CACHE}/{dataset}-{metadata.name}-checkpoint.pth"
-    if converted:
-        path = f"{CACHE}/{dataset}-lif-{metadata.name}-checkpoint.pth"
+    if variant != "":
+        path = f"{CACHE}/{dataset}-{variant}-{metadata.name}-checkpoint.pth"
     torch.save(checkpoint, path)
     print("-> checkpoint saved")
 
 
-def load(model: ResNet | LIFResNetDecoder, name: str, dataset: str, converted: bool = False) -> Tuple[bool, ResNet | LIFResNetDecoder, Metadata]:
+def load(model: ResNet | LIFResNetDecoder | ParaLIFResNetDecoder, name: str, dataset: str, variant: str = "") -> Tuple[bool, ResNet | LIFResNetDecoder | ParaLIFResNetDecoder, Metadata]:
     path = f"{CACHE}/{dataset}-{name}-checkpoint.pth"
-    if converted:
-        path = f"{CACHE}/{dataset}-lif-{name}-checkpoint.pth"
+    if variant != "":
+        path = f"{CACHE}/{dataset}-{variant}-{name}-checkpoint.pth"
 
     if not os.path.exists(path):
         return False, model, Metadata(name, 0, 0, float("inf"))
