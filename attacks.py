@@ -7,7 +7,7 @@ from tqdm import tqdm
 import copy
 import csv
 
-def sampled(loader: DataLoader, model: torch.nn.Module, device: str, sample: int = 200) -> DataLoader:
+def sampled(loader: DataLoader, model: torch.nn.Module, device: str, sample: int = 300) -> DataLoader:
     model = model.to(device)
     model.eval()
 
@@ -74,6 +74,8 @@ def perform(
             0.001,
             0.005,
             0.01,
+            0.02,
+            0.05,
             0.1,
             0.3,
             0.5,

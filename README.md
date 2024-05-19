@@ -40,7 +40,7 @@ _The <X, Y> represents how long the training process took; on continuous model f
 |-----------|-----------------|------------------
 | Default  | %75.1 _<25>_    | %79.1 _<70>_   |
 | LIF      | %71.77 _<25,5>_ | %77.8 _<70,5>_ |
-| ParaLIF  | %TBD   _<25,5>_ | %42.9 <70,5>_  |
+| ParaLIF  | %8.5   _<25,20>_ | %52.9 <70,5>_ |
 
 ### Fashion-MNIST
 | Variant  | ResNet-18       | ResNet-50      |
