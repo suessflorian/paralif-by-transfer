@@ -21,6 +21,7 @@ train_parser.add_argument("--device", type=str, default="mps", help="device to l
 test_parser = subparsers.add_parser("test", help="testing models")
 test_parser.add_argument("--model", type=str, default="resnet18", help="the architecture")
 test_parser.add_argument("--device", type=str, default="mps", help="device to lay tensor work over")
+test_parser.add_argument("--dataset", type=str, default="cifar100", help="dataset to train for")
 
 args = parser.parse_args()
 
@@ -110,7 +111,7 @@ elif args.command == "train":
         metadata,
     )
 elif args.command == "test":
-    model, preprocess = models.resnet(args.model, args.dataset)
+    model, preprocess = models.resnet(args.model, args.dataset, train=False)
     model.to(args.device)
 
     model, metadata = checkpoint.load(model, args.model, args.dataset)
