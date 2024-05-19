@@ -28,10 +28,20 @@ test_parser = subparsers.add_parser("test", help="testing models")
 test_parser.add_argument("--model", type=str, default="resnet18", help="the architecture")
 test_parser.add_argument("--device", type=str, default="mps", help="device to lay tensor work over")
 test_parser.add_argument("--dataset", type=str, default="cifar100", help="dataset to train for")
-test_parser.add_argument("--lif", action="store_true", help="if the model should be converted a lif decoder variant")
-test_parser.add_argument("--paralif", action="store_true", help="if the model should be converted to a paralif decoder variant")
+test_parser.add_argument("--lif", action="store_true", help="the lif variant of the model")
+test_parser.add_argument("--paralif", action="store_true", help="the paralif variant of the model")
+
+attack_parser = subparsers.add_parser("attack", help="testing robustness of models")
+attack_parser.add_argument("--model", type=str, default="resnet18", help="the architecture")
+attack_parser.add_argument("--device", type=str, default="mps", help="device to lay tensor work over")
+attack_parser.add_argument("--dataset", type=str, default="cifar100", help="dataset to use for attacking")
+attack_parser.add_argument("--lif", action="store_true", help="the lif variant of the model")
+attack_parser.add_argument("--paralif", action="store_true", help="the paralif variant of the model")
 
 args = parser.parse_args()
+
+if args.lif and args.paralif:
+    raise ValueError("cannot convert to both LIF and ParaLIF... abort")
 
 def train(
     model: torch.nn.Module,
@@ -153,5 +163,7 @@ elif args.command == "test":
     )
 
     print(f"Epoch: {metadata.epoch}, Loss: {loss}, Accuracy: {accuracy}")
+elif args.command == "attack":
+    raise ValueError("not implemented")
 else:
     raise ValueError("invalid command")
