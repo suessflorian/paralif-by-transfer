@@ -41,5 +41,3 @@ def plot(attack):
         plt.legend()
         plt.grid(True)
         plt.show()
-
-    print(f"Results plotted and saved in ./results/ for attack: {attack}")

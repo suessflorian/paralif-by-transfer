@@ -41,6 +41,8 @@ class LIFResNetDecoder(nn.Module):
         self.fc2 = nn.Linear(256, num_classes)
 
     def forward(self, x):
+        self.mem = self.lif.init_leaky()
+
         x = self.encoder(x)
         train = spikegen.rate(x, num_steps=self.steps)
         for i in range(self.steps):
