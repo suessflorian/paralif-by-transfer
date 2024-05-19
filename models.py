@@ -18,7 +18,7 @@ TASK = {
     "fashionMNIST": hone(10),
 }
 
-def resnet(config: str, dataset: str, train: bool = True) -> Tuple[ResNet, ImageClassification]:
+def resnet(config: str, dataset: str, freeze: bool = True) -> Tuple[ResNet, ImageClassification]:
     print(f"...configuration chosen: {config}")
     if config == "resnet18":
         weights = ResNet18_Weights.DEFAULT
@@ -29,8 +29,8 @@ def resnet(config: str, dataset: str, train: bool = True) -> Tuple[ResNet, Image
     else:
         raise ValueError(f"Unknown config: {config}")
 
-    if train:
-        model = freeze(model, depth=FreezeDepth.LAYER3)
+    if freeze:
+        model = freezeLayers(model, depth=FreezeDepth.LAYER3)
     return TASK[dataset](model), weights.transforms()
 
 class FreezeDepth(Enum):
@@ -40,7 +40,7 @@ class FreezeDepth(Enum):
     LAYER3 = auto()
     ALL = auto()
 
-def freeze(model: ResNet, depth: FreezeDepth = FreezeDepth.ALL) -> ResNet:
+def freezeLayers(model: ResNet, depth: FreezeDepth = FreezeDepth.ALL) -> ResNet:
     layers_to_freeze = {
         FreezeDepth.NONE: [],
         FreezeDepth.LAYER1: ["conv1", "bn1", "layer1"],

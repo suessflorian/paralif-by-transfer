@@ -1,4 +1,5 @@
 import models
+import convert
 import checkpoint
 import torch
 import data
@@ -6,6 +7,8 @@ import argparse
 from typing import Tuple, Callable
 from torch.utils.data import DataLoader
 from tqdm import tqdm
+
+torch.manual_seed(69)
 
 parser = argparse.ArgumentParser(description="Exploring CIFAR-100 S-NN models")
 subparsers = parser.add_subparsers(dest="command", help="sub-command help")
@@ -17,6 +20,7 @@ train_parser.add_argument("--dataset", type=str, default="cifar100", help="datas
 train_parser.add_argument("--lr", type=float, default=0.001, help="learning rate")
 train_parser.add_argument("--model", type=str, default="resnet18", help="the architecture")
 train_parser.add_argument("--device", type=str, default="mps", help="device to lay tensor work over")
+train_parser.add_argument("--convert", type=bool, default=False, help="if the model should be converted to snn")
 
 test_parser = subparsers.add_parser("test", help="testing models")
 test_parser.add_argument("--model", type=str, default="resnet18", help="the architecture")
@@ -25,11 +29,11 @@ test_parser.add_argument("--dataset", type=str, default="cifar100", help="datase
 
 args = parser.parse_args()
 
-
 def train(
     model: torch.nn.Module,
     name: str,
     dataset: str,
+    converted: bool,
     criterion: Callable,
     train_loader: DataLoader,
     test_loader: DataLoader,
@@ -47,6 +51,7 @@ def train(
                 checkpoint.cache(
                     model,
                     dataset,
+                    converted,
                     checkpoint.Metadata(
                         name=name, epoch=i + metadata.epoch, accuracy=best_accuracy, loss=best_loss
                     ),
@@ -89,10 +94,18 @@ if not args.command:
     parser.print_help()
     raise ValueError("no command specified")
 elif args.command == "train":
-    model, preprocess = models.resnet(args.model, args.dataset)
-    model.to(args.device)
+    model, preprocess = models.resnet(args.model, args.dataset, freeze=args.convert)
+    loaded, vanilla, metadata = checkpoint.load(model, args.model, args.dataset, converted=False)
 
-    model, metadata = checkpoint.load(model, args.model, args.dataset)
+    if args.convert:
+        if not loaded:
+            raise ValueError("must train vanilla model first... abort")
+        model = convert.convert(vanilla, args.dataset)
+        # NOTE: check if we already have a converted model checkpointed ready to continue on
+        _, model, metadata = checkpoint.load(model, args.model, args.dataset, converted=True)
+    else:
+        model = vanilla
+    model.to(args.device)
 
     criterion = torch.nn.CrossEntropyLoss()
     optimizer = torch.optim.SGD(model.parameters(), lr=args.lr, momentum=0.9, weight_decay=1e-4)
@@ -102,6 +115,7 @@ elif args.command == "train":
         model,
         args.model,
         args.dataset,
+        args.convert,
         criterion,
         train_loader,
         test_loader,
@@ -111,10 +125,15 @@ elif args.command == "train":
         metadata,
     )
 elif args.command == "test":
-    model, preprocess = models.resnet(args.model, args.dataset, train=False)
-    model.to(args.device)
+    model, preprocess = models.resnet(args.model, args.dataset, freeze=False)
+    if args.convert:
+        model = convert.convert(model, args.dataset)
+    loaded, model, metadata = checkpoint.load(model, args.model, args.dataset, converted=args.convert)
 
-    model, metadata = checkpoint.load(model, args.model, args.dataset)
+    if not loaded:
+        raise ValueError(f"no trained {args.model} for {args.dataset}... abort")
+
+    model.to(args.device)
 
     criterion = torch.nn.CrossEntropyLoss()
     train_loader, test_loader = data.loader(args.dataset, preprocess, 64)
