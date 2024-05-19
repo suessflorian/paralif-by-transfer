@@ -4,6 +4,7 @@ import convert
 import checkpoint
 import torch
 import data
+import attacks
 import argparse
 from typing import Tuple, Callable
 from torch.utils.data import DataLoader
@@ -37,6 +38,7 @@ attack_parser.add_argument("--device", type=str, default="mps", help="device to 
 attack_parser.add_argument("--dataset", type=str, default="cifar100", help="dataset to use for attacking")
 attack_parser.add_argument("--lif", action="store_true", help="the lif variant of the model")
 attack_parser.add_argument("--paralif", action="store_true", help="the paralif variant of the model")
+attack_parser.add_argument("--attack", type=str, default="fgsm", help="the type of attack to perform")
 
 args = parser.parse_args()
 
@@ -134,7 +136,7 @@ elif args.command == "train":
         model = vanilla
 
     model = freeze.freeze(model, depth=freeze.Depth.LAYER3)
-    model.to(args.device)
+    model = model.to(args.device)
 
     criterion = torch.nn.CrossEntropyLoss()
     optimizer = torch.optim.SGD(model.parameters(), lr=args.lr, momentum=0.9, weight_decay=1e-4)
@@ -159,9 +161,7 @@ elif args.command == "test":
         model = convert.convert(model, args.dataset, dest="LIF" if args.lif else "ParaLIF")
     loaded, model, metadata = checkpoint.load(model, args.model, args.dataset, variant="LIF" if args.lif else "ParaLIF" if args.paralif else "")
 
-    if not loaded:
-        raise ValueError(f"no trained {args.model} for {args.dataset}... abort")
-    model.to(args.device)
+    model = model.to(args.device)
 
     criterion = torch.nn.CrossEntropyLoss()
     train_loader, test_loader = data.loader(args.dataset, preprocess, 64)
@@ -175,6 +175,25 @@ elif args.command == "test":
 
     print(f"Epoch: {metadata.epoch}, Loss: {loss}, Accuracy: {accuracy}")
 elif args.command == "attack":
-    raise ValueError("not implemented")
+    model, preprocess = models.resnet(args.model, args.dataset)
+    if args.lif or args.paralif:
+        model = convert.convert(model, args.dataset, dest="LIF" if args.lif else "ParaLIF")
+    loaded, model, metadata = checkpoint.load(model, args.model, args.dataset, variant="LIF" if args.lif else "ParaLIF" if args.paralif else "")
+
+    if not loaded:
+        raise ValueError(f"no trained {args.model} for {args.dataset}... abort")
+
+    criterion = torch.nn.CrossEntropyLoss()
+    optimizer = torch.optim.SGD(model.parameters())
+    _, test_loader = data.loader(args.dataset, preprocess, 64)
+
+    model = model.to(device=args.device)
+    attacks.perform(
+        model, args.model, "LIF" if args.lif else "ParaLIF" if args.paralif else "",
+        criterion,
+        optimizer,
+        test_loader,
+    )
+
 else:
     raise ValueError("invalid command")

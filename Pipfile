@@ -9,6 +9,7 @@ torchvision = "*"
 tqdm = "*"
 tabulate = "*"
 snntorch = "*"
+adversarial-robustness-toolbox = "*"
 
 [dev-packages]
 black = "*"

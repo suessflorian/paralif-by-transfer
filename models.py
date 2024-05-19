@@ -17,7 +17,7 @@ TASK = {
 }
 
 def resnet(config: str, dataset: str) -> Tuple[ResNet, ImageClassification]:
-    print(f"...configuration chosen: {config}")
+    print(f"ARCH: {config}")
     if config == "resnet18":
         weights = ResNet18_Weights.DEFAULT
         model = resnet18(weights=weights)

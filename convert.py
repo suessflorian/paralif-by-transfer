@@ -54,6 +54,7 @@ class LIFResNetDecoder(nn.Module):
         return self
 
 def convert(model: ResNet | LIFResNetDecoder | ParaLIFResNetDecoder, dataset: str, dest: str = "LIF") -> LIFResNetDecoder | ParaLIFResNetDecoder:
+    print(f"VARIANT: {dest}")
     if dest == "LIF":
         if isinstance(model, ResNet):
             if dataset == "cifar10":
