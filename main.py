@@ -197,6 +197,9 @@ elif args.command == "attack":
         criterion,
         optimizer,
         test_loader,
+        attack="fgsm",
+        dataset=args.dataset,
+        device=args.device,
     )
 elif args.command == "results":
     results.plot(args.attack)
