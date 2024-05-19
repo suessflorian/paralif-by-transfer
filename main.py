@@ -1,4 +1,5 @@
 import models
+import freeze
 import convert
 import checkpoint
 import torch
@@ -94,7 +95,7 @@ if not args.command:
     parser.print_help()
     raise ValueError("no command specified")
 elif args.command == "train":
-    model, preprocess = models.resnet(args.model, args.dataset, freeze=args.convert)
+    model, preprocess = models.resnet(args.model, args.dataset)
     loaded, vanilla, metadata = checkpoint.load(model, args.model, args.dataset, converted=False)
 
     if args.convert:
@@ -105,6 +106,8 @@ elif args.command == "train":
         _, model, metadata = checkpoint.load(model, args.model, args.dataset, converted=True)
     else:
         model = vanilla
+
+    model = freeze.freeze(model, depth=freeze.Depth.LAYER3)
     model.to(args.device)
 
     criterion = torch.nn.CrossEntropyLoss()
@@ -125,7 +128,7 @@ elif args.command == "train":
         metadata,
     )
 elif args.command == "test":
-    model, preprocess = models.resnet(args.model, args.dataset, freeze=False)
+    model, preprocess = models.resnet(args.model, args.dataset)
     if args.convert:
         model = convert.convert(model, args.dataset)
     loaded, model, metadata = checkpoint.load(model, args.model, args.dataset, converted=args.convert)
@@ -133,6 +136,7 @@ elif args.command == "test":
     if not loaded:
         raise ValueError(f"no trained {args.model} for {args.dataset}... abort")
 
+    model = freeze.freeze(model, depth=freeze.Depth.ALL)
     model.to(args.device)
 
     criterion = torch.nn.CrossEntropyLoss()
