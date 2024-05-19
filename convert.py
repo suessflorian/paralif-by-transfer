@@ -22,6 +22,11 @@ class ParaLIFResNetDecoder(nn.Module):
         x = self.paralif(train)
         return torch.mean(x,1)
 
+    def to(self, device):
+        self.encoder.to(device)
+        self.paralif.to(device)
+        return self
+
 class LIFResNetDecoder(nn.Module):
     def __init__(self, model: ResNet, num_classes: int):
         super(LIFResNetDecoder, self).__init__()

@@ -49,6 +49,16 @@ class Base(torch.nn.Module):
             torch.nn.init.zeros_(self.fc_recu.bias)
             if self.debug: torch.nn.init.ones_(self.fc_recu.weight)
 
+    def to(self, device):
+        self.device = device
+        self.v_th = self.v_th.to(device)
+        self.nb_spike_per_neuron = self.nb_spike_per_neuron.to(device)
+        self.fc = self.fc.to(device)
+        if self.recurrent:
+            self.fc_recu = self.fc_recu.to(device)
+        return super(Base, self).to(device)
+
+
 #ParaLIF implementation from https://github.com/NECOTIS/Parallelizable-Leaky-Integrate-and-Fire-Neuron/blob/main/neurons/paralif.py
 class ParaLIF(Base):
     """
@@ -89,8 +99,8 @@ class ParaLIF(Base):
         """
         if self.nb_steps is None: return None
 
-        l = torch.pow(self.alpha,torch.arange(self.nb_steps,device=self.device))
-        k = torch.pow(self.beta,torch.arange(self.nb_steps,device=self.device))*(1-self.beta)
+        l = torch.pow(self.alpha,torch.arange(self.nb_steps, device=self.device))
+        k = torch.pow(self.beta,torch.arange(self.nb_steps, device=self.device))*(1-self.beta)
         fft_l = torch.fft.rfft(l, n=2*self.nb_steps).unsqueeze(1)
         fft_k = torch.fft.rfft(k, n=2*self.nb_steps).unsqueeze(1)
         return fft_l*fft_k
@@ -119,8 +129,8 @@ class ParaLIF(Base):
             self.fft_l_k = self.compute_params_fft()
 
         # Perform parallel leaky integration - Equation (15)
-        fft_X = torch.fft.rfft(X, n=2*nb_steps, dim=1)
-        mem_pot_hidden = torch.fft.irfft(fft_X*self.fft_l_k, n=2*nb_steps, dim=1)[:,:nb_steps:,]
+        fft_X = torch.fft.rfft(X, n=2*nb_steps, dim=1).to(self.device)
+        mem_pot_hidden = torch.fft.irfft(fft_X*self.fft_l_k.to(self.device), n=2*nb_steps, dim=1)[:,:nb_steps:,]
         
         if self.recurrent:
             mem_pot_hidden_ = F.pad(mem_pot_hidden, (0,0,1,0), "constant", 0)[:,:-1]
@@ -179,6 +189,13 @@ class ParaLIF(Base):
     
     def extra_repr(self):
         return f"spike_mode={self.spike_mode}, recurrent={self.recurrent}, fire={self.fire}, alpha={self.alpha:.2f}, beta={self.beta:.2f}"
+
+    def to(self, device):
+        super().to(device)
+        self.nb_spike_per_neuron_rec = self.nb_spike_per_neuron_rec.to(device)
+        if self.fire and self.spike_fn is not None:
+            self.spike_fn.to(device)
+        return self
 
 # WARNING: Implementation from: https://github.com/NECOTIS/Parallelizable-Leaky-Integrate-and-Fire-Neuron
 # Sigmoid Bernoulli Spikes Generation
