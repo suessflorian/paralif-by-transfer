@@ -30,9 +30,9 @@ class Base(torch.nn.Module):
         self.debug = debug
         self.nb_spike_per_neuron = torch.zeros(self.hidden_size, device=self.device)
 
-        # Neuron time constants
-        self.alpha = float(np.exp(-time_step/tau_syn))
-        self.beta = float(np.exp(-time_step/tau_mem))
+        self.time_step = time_step
+        self.tau_mem = torch.nn.Parameter(torch.tensor(tau_mem, device=self.device))
+        self.tau_syn = torch.nn.Parameter(torch.tensor(tau_syn, device=self.device))
 
         # Fully connected layer for feedforward synapses
         self.fc = torch.nn.Linear(self.input_size, self.hidden_size, device=self.device)
@@ -50,6 +50,8 @@ class Base(torch.nn.Module):
             if self.debug: torch.nn.init.ones_(self.fc_recu.weight)
 
     def to(self, device):
+        self.tau_mem = self.tau_mem.to(device)
+        self.tau_syn = self.tau_syn.to(device)
         self.device = device
         self.v_th = self.v_th.to(device)
         self.nb_spike_per_neuron = self.nb_spike_per_neuron.to(device)
@@ -99,20 +101,22 @@ class ParaLIF(Base):
         """
         if self.nb_steps is None: return None
 
-        l = torch.pow(self.alpha,torch.arange(self.nb_steps, device=self.device))
-        k = torch.pow(self.beta,torch.arange(self.nb_steps, device=self.device))*(1-self.beta)
+        alpha = torch.exp(-self.time_step / self.tau_syn)
+        beta = torch.exp(-self.time_step / self.tau_mem)
+
+        l = torch.pow(alpha,torch.arange(self.nb_steps, device=self.device))
+        k = torch.pow(beta,torch.arange(self.nb_steps, device=self.device))*(1-beta)
         fft_l = torch.fft.rfft(l, n=2*self.nb_steps).unsqueeze(1)
         fft_k = torch.fft.rfft(k, n=2*self.nb_steps).unsqueeze(1)
         return fft_l*fft_k
 
 
-    def forward(self, inputs, parallel=True):
+    def forward(self, inputs):
         """
         Perform forward pass of the network
 
         Parameters:
         - inputs (tensor): Input tensor with shape (batch_size, nb_steps, input_size)
-        - parallel (bool, optional): If 'True' (default) the parallel forward is used and if 'False' the sequential forward is used
 
         Returns:
         - Return membrane potential tensor with shape (batch_size, nb_steps, hidden_size) if 'fire' is False
@@ -120,7 +124,6 @@ class ParaLIF(Base):
         - Return the tuple (spiking tensor, membrane potential tensor) if 'debug' is True and 'fire' is True
         """
         X = self.fc(inputs)
-        if not parallel: return self.forward_sequential(X) # Run on sequential mode
         batch_size, nb_steps,_ = X.shape
 
         # Compute FFT params if nb_steps has changed
@@ -147,43 +150,6 @@ class ParaLIF(Base):
         	# Perform firing - Equation (24)
             spikes = self.spike_fn(mem_pot_final)
             self.nb_spike_per_neuron = torch.mean(torch.mean(spikes,dim=0),dim=0)
-            return (spikes, mem_pot_final) if self.debug else spikes
-        return mem_pot_final
-    
-    # Sequential ParaLIF forward function
-    def forward_sequential(self, X):
-
-        batch_size, nb_steps,_ = X.shape
-        syn_cur_hidden = torch.zeros_like(X[:,0]) # shape: [batch_size, hidden_size]
-        mem_pot_hidden = torch.zeros_like(X[:,0]) # shape: [batch_size, hidden_size]
-        mem_pot_hidden_prev = torch.zeros_like(X[:,0]) # shape: [batch_size, hidden_size]
-        if self.recurrent:
-            syn_cur_temp = torch.zeros_like(X[:,0]) # shape: [batch_size, hidden_size]
-            mem_pot_temp = torch.zeros_like(X[:,0]) # shape: [batch_size, hidden_size]
-            hidden_state = torch.zeros_like(X) # shape: [batch_size, nb_steps, hidden_size]
-        mem_pot_final = torch.zeros_like(X) # shape: [batch_size, nb_steps, hidden_size]
-        spikes = torch.zeros_like(X) # shape: [batch_size, nb_steps, hidden_size]
-        
-        for t in range(nb_steps):
-            # Integrating input to synaptic current
-            syn_cur_hidden = self.alpha*syn_cur_hidden + X[:,t]
-            mem_pot_hidden_prev = mem_pot_hidden
-            # Integrating synaptic current to membrane potential - Equation (7)
-            mem_pot_hidden = self.beta*mem_pot_hidden_prev + (1-self.beta)*syn_cur_hidden
-            if self.recurrent:
-                # Computing hidden state - Equation (22)
-                hidden_state[:,t] = self.spike_fn(torch.stack((mem_pot_hidden_prev,mem_pot_hidden), dim=1))[:,-1]  if self.fire else mem_pot_hidden
-                # Integrating input and hidden state to recurrent synaptic current
-                syn_cur_temp = self.alpha*syn_cur_temp + X[:,t] + self.fc_recu(hidden_state[:,t-1])
-                # Integrating recurrent synaptic current to recurrent membrane potential
-                mem_pot_temp = self.beta*mem_pot_temp + (1-self.beta)*syn_cur_temp
-                mem_pot_final[:,t] = mem_pot_hidden + mem_pot_temp
-            else: mem_pot_final[:,t] = mem_pot_hidden
-            if self.fire: spikes[:,t] = self.spike_fn(mem_pot_final[:,[t-1,t]])[:,-1]
-        
-        if self.fire:
-            self.nb_spike_per_neuron = torch.mean(torch.mean(spikes,dim=0),dim=0)
-            if self.recurrent: self.nb_spike_per_neuron_rec = torch.mean(torch.mean(hidden_state,dim=0),dim=0)
             return (spikes, mem_pot_final) if self.debug else spikes
         return mem_pot_final
     
