@@ -1,8 +1,34 @@
 import os
 import csv
+import pandas as pd
 import matplotlib.pyplot as plt
 
-def plot(attack):
+def plot_training(dataset: str):
+    results_dir = "./results/train"
+    csv_files = [f for f in os.listdir(results_dir) if f.startswith(dataset) and f.endswith(".csv")]
+
+    plt.figure(figsize=(12, 8))
+
+    for csv_file in csv_files:
+        file_path = os.path.join(results_dir, csv_file)
+        data = pd.read_csv(file_path)
+
+        base_name = os.path.splitext(csv_file)[0]
+        _, variant, name = base_name.split("-", 2)
+
+        label = f"{name} ({variant})" if variant != "" else name
+
+        # plt.plot(data['epoch'], data['loss'], label=f'Loss - {label}')
+        plt.plot(data['epoch'], data['accuracy'], label=f'Accuracy - {label}')
+
+    plt.title(f"Training Data for {dataset}")
+    plt.xlabel('Epoch')
+    plt.ylabel('Value')
+    plt.legend()
+    plt.grid(True)
+    plt.show()
+
+def plot_attack(attack: str):
     result_files = [f for f in os.listdir('./results') if f.endswith(f"-{attack}.csv")]
     if not result_files:
         print(f"no result files found for attack: {attack}")

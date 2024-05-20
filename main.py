@@ -16,7 +16,7 @@ from tqdm import tqdm
 torch.manual_seed(69)
 
 parser = argparse.ArgumentParser(description="Exploring CIFAR-100 S-NN models")
-subparsers = parser.add_subparsers(dest="command", help="sub-command help")
+subparsers = parser.add_subparsers(dest="command")
 
 train_parser = subparsers.add_parser("train", help="training models")
 train_parser.add_argument("--epochs", type=int, default=5, help="number of epochs to train for")
@@ -43,8 +43,14 @@ attack_parser.add_argument("--lif", action="store_true", help="the lif variant o
 attack_parser.add_argument("--paralif", action="store_true", help="the paralif variant of the model")
 attack_parser.add_argument("--attack", type=str, default="fgsm", help="the type of attack to perform")
 
-results_parser = subparsers.add_parser("results", help="graphs of robustness test results")
-results_parser.add_argument("--attack", type=str, default="FGSM", help="which attack robustness results graphed")
+results_parser = subparsers.add_parser("results", help="rendering the diagrams of the results gathered")
+results_subparser = results_parser.add_subparsers(dest="type", help="which type of results to show")
+
+attack_results_parser = results_subparser.add_parser("attack", help="rendering the diagrams of the attack results")
+attack_results_parser.add_argument("--attack", type=str, default="FGSM", help="which attack robustness results graphed")
+
+training_results_parser = results_subparser.add_parser("training", help="rendering the diagrams relevant to training")
+training_results_parser.add_argument("--dataset", type=str, default="cifar100", help="which dataset to show training results for")
 
 args = parser.parse_args()
 
@@ -207,7 +213,12 @@ elif args.command == "attack":
         device=args.device,
     )
 elif args.command == "results":
-    results.plot(args.attack)
+    if args.type == "training":
+        results.plot_training(args.dataset)
+    elif args.type == "attacks":
+        results.plot_attack(args.attack)
+    else:
+        raise ValueError("invalid results type")
 
 else:
     raise ValueError("invalid command")
