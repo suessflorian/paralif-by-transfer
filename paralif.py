@@ -40,8 +40,8 @@ class Base(torch.nn.Module):
         torch.nn.init.kaiming_uniform_(self.fc.weight, a=0, mode='fan_in', nonlinearity='linear')
         torch.nn.init.zeros_(self.fc.bias)
         if self.debug: torch.nn.init.ones_(self.fc.weight)
-        
-        # Fully connected for recurrent synapses 
+
+        # Fully connected for recurrent synapses
         if self.recurrent:
             self.fc_recu = torch.nn.Linear(self.hidden_size, self.hidden_size, device=self.device)
             # Initializing weights
@@ -50,8 +50,6 @@ class Base(torch.nn.Module):
             if self.debug: torch.nn.init.ones_(self.fc_recu.weight)
 
     def to(self, device):
-        self.tau_mem = self.tau_mem.to(device)
-        self.tau_syn = self.tau_syn.to(device)
         self.device = device
         self.v_th = self.v_th.to(device)
         self.nb_spike_per_neuron = self.nb_spike_per_neuron.to(device)
@@ -78,8 +76,8 @@ class ParaLIF(Base):
     - time_step (float, optional): step size for updating the LIF model (default: 1e-3)
     - debug (bool, optional): flag to turn on/off debugging mode (default: False)
     """
-	
-    def __init__(self, input_size, hidden_size, device, spike_mode, recurrent=False, 
+
+    def __init__(self, input_size, hidden_size, device, spike_mode, recurrent=False,
                  fire=True, tau_mem=1e-3, tau_syn=1e-3, time_step=1e-3, debug=False):
 
         super(ParaLIF, self).__init__(input_size, hidden_size, device, recurrent,
@@ -90,7 +88,7 @@ class ParaLIF(Base):
         else: self.spike_fn = None
         self.nb_spike_per_neuron_rec = torch.zeros(self.hidden_size, device=self.device)
         self.nb_steps = None
-        
+
 
     def compute_params_fft(self):
         """
@@ -127,14 +125,14 @@ class ParaLIF(Base):
         batch_size, nb_steps,_ = X.shape
 
         # Compute FFT params if nb_steps has changed
-        if self.nb_steps!=nb_steps: 
+        if self.nb_steps!=nb_steps:
             self.nb_steps = nb_steps
             self.fft_l_k = self.compute_params_fft()
 
         # Perform parallel leaky integration - Equation (15)
         fft_X = torch.fft.rfft(X, n=2*nb_steps, dim=1).to(self.device)
         mem_pot_hidden = torch.fft.irfft(fft_X*self.fft_l_k.to(self.device), n=2*nb_steps, dim=1)[:,:nb_steps:,]
-        
+
         if self.recurrent:
             mem_pot_hidden_ = F.pad(mem_pot_hidden, (0,0,1,0), "constant", 0)[:,:-1]
             # Computing hidden state - Equation (22)
@@ -145,14 +143,14 @@ class ParaLIF(Base):
             mem_pot_temp = torch.fft.irfft(fft_X_hidden_state*self.fft_l_k, n=2*nb_steps, dim=1)[:,:nb_steps:,]
             mem_pot_final = mem_pot_hidden + mem_pot_temp
         else: mem_pot_final = mem_pot_hidden
-            
+
         if self.fire:
         	# Perform firing - Equation (24)
             spikes = self.spike_fn(mem_pot_final)
             self.nb_spike_per_neuron = torch.mean(torch.mean(spikes,dim=0),dim=0)
             return (spikes, mem_pot_final) if self.debug else spikes
         return mem_pot_final
-    
+
     def extra_repr(self):
         return f"spike_mode={self.spike_mode}, recurrent={self.recurrent}, fire={self.fire}, alpha={self.alpha:.2f}, beta={self.beta:.2f}"
 
@@ -186,7 +184,7 @@ class GumbelSoftmax(torch.nn.Module):
         self.tau = tau
         self.uniform = torch.distributions.Uniform(torch.tensor(0.0).to(device),torch.tensor(1.0).to(device))
         self.softmax = torch.nn.Softmax(dim=0)
-  
+
     def forward(self, logits):
         # Sample uniform noise
         unif = self.uniform.sample(logits.shape + (2,))
@@ -219,7 +217,7 @@ class SurrGradSpike(torch.autograd.Function):
         grad_input = grad_output.clone()
         grad = grad_input/(SurrGradSpike.scale*torch.abs(input)+1.0)**2
         return grad
-    
+
 class SpikingFunction(torch.nn.Module):
     """
     Perform spike generation. There is 4 main spiking methods:
@@ -231,23 +229,23 @@ class SpikingFunction(torch.nn.Module):
     """
     def __init__(self, device, spike_mode):
         super(SpikingFunction, self).__init__()
-            
+
         if spike_mode in ["SB", "SD", "ST"]: self.normalise = torch.sigmoid
         elif spike_mode in ["TD", "TT"]: self.normalise = torch.tanh
         elif spike_mode in ["TRB", "TRD", "TRT"]: self.normalise = lambda inputs : F.relu(torch.tanh(inputs))
         else: self.normalise = lambda inputs : inputs
-        
+
         if spike_mode in ["SB", "TRB"]: self.generate = StochasticStraightThrough.apply
         elif spike_mode =="GS": self.generate = GumbelSoftmax(device)
-        elif spike_mode in ["D", "SD", "TD", "TRD"]: 
+        elif spike_mode in ["D", "SD", "TD", "TRD"]:
             self.generate = self.delta_fn
             self.threshold = torch.nn.Parameter(torch.tensor(0.01, device=device))
-        elif spike_mode in ["T", "ST", "TT", "TRT"]: 
+        elif spike_mode in ["T", "ST", "TT", "TRT"]:
             self.generate = self.threshold_fn
             self.threshold = torch.nn.Parameter(self.normalise(torch.tensor(1., device=device)))
-            
+
     def forward(self, inputs):
-        inputs = self.normalise(inputs) 
+        inputs = self.normalise(inputs)
         return self.generate(inputs)
     # Delta Spikes Generation - Equation (19)
     def delta_fn(self, inputs):

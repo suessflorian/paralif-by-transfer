@@ -11,6 +11,7 @@ tabulate = "*"
 snntorch = "*"
 adversarial-robustness-toolbox = "*"
 matplotlib = "*"
+scikit-image = "*"
 
 [dev-packages]
 black = "*"
