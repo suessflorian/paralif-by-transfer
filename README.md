@@ -33,9 +33,9 @@ _The <X, Y> represents how long the training process took; on continuous model f
 
 | Variant  | ResNet-18       | ResNet-50      |
 |-----------|-----------------|------------------
-| Default  | %92.1 _<5>_     |  %94.1 _<5>_   |
-| LIF      | %92.2 _<5,5>_   |  %94.4 _<5,5>_ |
-| ParaLIF  | %61.0 _<5,20>_  |  %92.2 _<5,5>_ |
+| Default  | %92.4 _<10>_     |  %94.1 _<5>_   |
+| LIF      | %92.8 _<10,10>_  |  %94.4 _<5,5>_ |
+| ParaLIF  | %89.5 _<10,10>_  |  %92.2 _<5,5>_ |
 
 ### CIFAR-100
 | Variant  | ResNet-18       | ResNet-50      |

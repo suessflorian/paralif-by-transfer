@@ -5,6 +5,12 @@ import paralif
 from snntorch import spikegen
 from torchvision.models import ResNet
 
+def min_max_norm(batch: torch.Tensor) -> torch.Tensor:
+    min_vals = batch.amin(dim=1, keepdim=True)
+    max_vals = batch.amax(dim=1, keepdim=True)
+    normalized_batch = (batch - min_vals) / (max_vals - min_vals + 1e-8) # NOTE: eps here to avoid div/zero.
+    return normalized_batch
+
 class ParaLIFResNetDecoder(nn.Module):
     def __init__(self, model: ResNet, num_classes: int):
         super(ParaLIFResNetDecoder, self).__init__()
@@ -17,7 +23,7 @@ class ParaLIFResNetDecoder(nn.Module):
 
     def forward(self, x):
         x = self.encoder(x)
-        train = spikegen.rate(x, num_steps=self.steps)
+        train = spikegen.rate(min_max_norm(x), num_steps=self.steps)
         train = torch.swapaxes(train, 0, 1)
         x = self.paralif(train)
         return torch.mean(x,1)
@@ -44,7 +50,7 @@ class LIFResNetDecoder(nn.Module):
         self.mem = self.lif.init_leaky()
 
         x = self.encoder(x)
-        train = spikegen.rate(x, num_steps=self.steps)
+        train = spikegen.rate(min_max_norm(x), num_steps=self.steps)
         for i in range(self.steps):
             spike = train[i]
             spike = self.fc1(spike)

@@ -7,6 +7,8 @@ import data
 import attacks
 import results
 import argparse
+import os
+import csv
 from typing import Tuple, Callable
 from torch.utils.data import DataLoader
 from tqdm import tqdm
@@ -64,19 +66,31 @@ def train(
 ):
     model.train()
     best_accuracy, best_loss = metadata.accuracy, metadata.loss
-    for i in range(epochs):
-        if (i) % 5 == 0:
-            loss, accuracy = evaluate(model, criterion, test_loader, device)
-            if accuracy >= best_accuracy:
-                checkpoint.cache(
-                    model,
-                    dataset,
-                    checkpoint.Metadata(
-                        name=name, epoch=i + metadata.epoch, accuracy=best_accuracy, loss=best_loss
-                    ),
-                    variant,
-                )
-            print(f"Epoch: {i + metadata.epoch}, Loss: {loss}, Accuracy: {accuracy}")
+
+    report = f"./results/train/{dataset}-{variant}-{name}.csv"
+    if not os.path.exists(report):
+        with open(report, mode='w', newline='') as file:
+            writer = csv.writer(file)
+            writer.writerow(["epoch", "loss", "accuracy"])
+
+    for i in range(1, epochs + 1):
+        loss, accuracy = evaluate(model, criterion, test_loader, device)
+        if accuracy >= best_accuracy:
+            best_accuracy = accuracy
+            checkpoint.cache(
+                model,
+                dataset,
+                checkpoint.Metadata(
+                    name=name, epoch=i + metadata.epoch, accuracy=best_accuracy, loss=best_loss
+                ),
+                variant,
+            )
+        print(f"Epoch: {i + metadata.epoch}, Loss: {loss}, Accuracy: {accuracy}")
+
+        with open(report, mode='a', newline='') as file:
+            writer = csv.writer(file)
+            writer.writerow([i + metadata.epoch, loss, accuracy])
+
         for images, labels in tqdm(train_loader, desc="Training", unit="batch"):
             images, labels = images.to(device), labels.to(device)
             outputs = model(images)
@@ -85,18 +99,6 @@ def train(
             optimizer.zero_grad()
             loss.backward()
             optimizer.step()
-    loss, accuracy = evaluate(model, criterion, test_loader, device)
-    if accuracy >= best_accuracy:
-        checkpoint.cache(
-            model,
-            dataset,
-            checkpoint.Metadata(
-                name=name, epoch=epochs + metadata.epoch, accuracy=best_accuracy, loss=best_loss
-            ),
-            variant,
-        )
-    print(f"Epoch: {epochs + metadata.epoch}, Loss: {loss}, Accuracy: {accuracy}")
-
 
 def evaluate(
     model: torch.nn.Module,
@@ -164,6 +166,9 @@ elif args.command == "test":
     if args.lif or args.paralif:
         model = convert.convert(model, args.dataset, dest="LIF" if args.lif else "ParaLIF")
     loaded, model, metadata = checkpoint.load(model, args.model, args.dataset, variant="LIF" if args.lif else "ParaLIF" if args.paralif else "")
+    if not loaded:
+        raise ValueError(f"no trained {args.model} for {args.dataset}... abort")
+
 
     model = model.to(args.device)
 
