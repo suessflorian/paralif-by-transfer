@@ -40,16 +40,16 @@ _The <X, Y> represents how long the training process took; on continuous model f
 ### CIFAR-100
 | Variant  | ResNet-18       | ResNet-50      |
 |-----------|-----------------|------------------
-| Default  | %75.1 _<25>_    | %79.1 _<70>_   |
-| LIF      | %71.77 _<25,5>_ | %77.8 _<70,5>_ |
-| ParaLIF  | %8.5   _<25,20>_ | %52.9 _<70,5>_ |
+| Default  | %73.3 _<10>_    | %77.9 _<10>_   |
+| LIF      | %73.4 _<10,10>_ | %78.4 _<10,10>_ |
+| ParaLIF  | %39.3 _<10,20>_ | %57.4 _<10,20>_ |
 
 ### Fashion-MNIST
 | Variant  | ResNet-18       | ResNet-50      |
 |-----------|-----------------|------------------
-| Default  | %93.4 _<20>_    |  %93.4 _<10>_  |
-| LIF      | %93.5 _<10,10>_ |  %93 _<10,5>_  |
-| ParaLIF  | %75.2 _<10,5>_  |  %74 _<10,5>_  |
+| Default  | %93.2 _<10>_    |  %93.2 _<10>_  |
+| LIF      | %93.7 _<10,10>_ |  %93.4 _<10,10>_  |
+| ParaLIF  | %90.2 _<10,10>_ | %90.4 _<10,10>_  |
 
 ## Robustness Measures
 As this is where our focus predominately lies, we provide a pipeline of well known attacks at various intensities and contrast measure robustness.
