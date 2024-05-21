@@ -48,6 +48,7 @@ results_subparser = results_parser.add_subparsers(dest="type", help="which type 
 
 attack_results_parser = results_subparser.add_parser("attack", help="rendering the diagrams of the attack results")
 attack_results_parser.add_argument("--attack", type=str, default="fgsm", help="which attack robustness results graphed")
+attack_results_parser.add_argument("--dataset", type=str, default="cifar100", help="which dataset to show attack results for")
 
 training_results_parser = results_subparser.add_parser("training", help="rendering the diagrams relevant to training")
 training_results_parser.add_argument("--dataset", type=str, default="cifar100", help="which dataset to show training results for")
@@ -260,11 +261,10 @@ elif args.command == "attack":
         device=args.device,
     )
 elif args.command == "results":
-    print(args.type)
     if args.type == "training":
         results.plot_training(args.dataset)
     elif args.type == "attack":
-        results.plot_attack(args.attack)
+        results.plot_attack(args.dataset, args.attack)
     else:
         raise ValueError("invalid results type")
 

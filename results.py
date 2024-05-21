@@ -1,14 +1,13 @@
 import os
-import csv
 import pandas as pd
 import matplotlib.pyplot as plt
+from matplotlib.gridspec import GridSpec
 
 def plot_training(dataset: str):
     results_dir = "./results/train"
     csv_files = [f for f in os.listdir(results_dir) if f.startswith(dataset + "-") and f.endswith(".csv")]
 
     _, (ax1, ax2) = plt.subplots(1, 2, figsize=(18, 8))
-
     for csv_file in csv_files:
         file_path = os.path.join(results_dir, csv_file)
         data = pd.read_csv(file_path)
@@ -44,37 +43,61 @@ def plot_training(dataset: str):
     plt.tight_layout()
     plt.show()
 
-def plot_attack(attack: str):
+def plot_attack(dataset: str, attack: str):
     result_files = [f for f in os.listdir('./results') if f.endswith(f"-{attack}.csv")]
     if not result_files:
-        print(f"no result files found for attack: {attack}")
+        print(f"No result files found for attack: {attack}")
         return
 
+    _, axs = plt.subplots(2, 2, figsize=(14, 14))
 
-    data_dict = {}
     for file in result_files:
         base_name = os.path.splitext(file)[0]
-        dataset, variant, model = base_name.split("-", 2)
+        _, variant, name = base_name.split("-", 2)
 
-        label = f"{model} ({variant})" if variant != "" else model
+        label = f"{name} ({variant})" if variant != "" else name
+        data = pd.read_csv(os.path.join('./results', file))
+        data['success_rate'] = 1 - data['accuracy']
 
-        with open(os.path.join('./results', file), mode='r') as f:
-            reader = csv.reader(f)
-            _ = next(reader)
-            data = [(float(row[0]), float(row[1])) for row in reader]
+        if variant == "ParaLIF":
+            grouped_data = data.groupby('epsilon').agg({'success_rate': ['min', 'max'], 'ssim': ['mean']})
+            if "resnet18" in name:
+                axs[0, 0].fill_between(grouped_data.index, grouped_data['success_rate']['min'], grouped_data['success_rate']['max'], alpha=0.3, label=label)
+                axs[1, 0].plot(grouped_data.index, grouped_data['ssim']['mean'], label=label)
+            elif "resnet50" in name:
+                axs[0, 1].fill_between(grouped_data.index, grouped_data['success_rate']['min'], grouped_data['success_rate']['max'], alpha=0.3, label=label)
+                axs[1, 1].plot(grouped_data.index, grouped_data['ssim']['mean'], label=label)
+        else:
+            if "resnet18" in name:
+                axs[0, 0].plot(data['epsilon'], data['success_rate'], label=label)
+                axs[1, 0].plot(data['epsilon'], data['ssim'], label=label)
+            elif "resnet50" in name:
+                axs[0, 1].plot(data['epsilon'], data['success_rate'], label=label)
+                axs[1, 1].plot(data['epsilon'], data['ssim'], label=label)
 
-        if dataset not in data_dict:
-            data_dict[dataset] = {}
-        data_dict[dataset][label] = data
+    axs[0, 0].set_title(f"{attack} on {dataset} - ResNet18 Attack Success Rate")
+    axs[0, 0].set_xlabel('Epoch')
+    axs[0, 0].set_ylabel('Success Rate')
+    axs[0, 0].legend()
+    axs[0, 0].grid(True)
 
-    for dataset, results in data_dict.items():
-        plt.figure()
-        for label, data in results.items():
-            epsilons, accuracies = zip(*data)
-            plt.plot(epsilons, accuracies, label=label)
-        plt.xlabel('Epsilon') # TODO: hardcoded for FGSM
-        plt.ylabel('Accuracy') # TODO: hardcoded for FGSM
-        plt.title(f'Attack: {attack} on Dataset: {dataset}')
-        plt.legend()
-        plt.grid(True)
-        plt.show()
+    axs[0, 1].set_title(f"{attack} on {dataset} - ResNet50 Attack Success Rate")
+    axs[0, 1].set_xlabel('Epoch')
+    axs[0, 1].set_ylabel('Success Rate')
+    axs[0, 1].legend()
+    axs[0, 1].grid(True)
+
+    axs[1, 0].set_title(f"Training Data for {dataset} - ResNet18 Models (SSIM)")
+    axs[1, 0].set_xlabel('Epoch')
+    axs[1, 0].set_ylabel('SSIM')
+    axs[1, 0].legend()
+    axs[1, 0].grid(True)
+
+    axs[1, 1].set_title(f"Training Data for {dataset} - ResNet50 Models (SSIM)")
+    axs[1, 1].set_xlabel('Epoch')
+    axs[1, 1].set_ylabel('SSIM')
+    axs[1, 1].legend()
+    axs[1, 1].grid(True)
+
+    plt.tight_layout()
+    plt.show()
