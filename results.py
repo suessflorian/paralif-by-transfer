@@ -56,47 +56,51 @@ def plot_attack(dataset: str, attack: str):
 
         label = f"{name} ({variant})" if variant != "" else name
         data = pd.read_csv(os.path.join('./results', file))
-        data['success_rate'] = (100 - data['accuracy']) / 100
 
-        if variant == "ParaLIF":
-            grouped_data = data.groupby('epsilon').agg({'success_rate': ['min', 'max'], 'ssim': ['mean']})
-            if "resnet18" in name:
-                axs[0, 0].fill_between(grouped_data.index, grouped_data['success_rate']['min'], grouped_data['success_rate']['max'], alpha=0.3, label=label)
-                axs[1, 0].plot(grouped_data.index, grouped_data['ssim']['mean'], label=label)
-            elif "resnet50" in name:
-                axs[0, 1].fill_between(grouped_data.index, grouped_data['success_rate']['min'], grouped_data['success_rate']['max'], alpha=0.3, label=label)
-                axs[1, 1].plot(grouped_data.index, grouped_data['ssim']['mean'], label=label)
+        if attack == "fgsm" or attack == "deepfool" or attack == "fmn":
+            data['success_rate'] = (100 - data['accuracy']) / 100
+
+            if variant == "ParaLIF":
+                grouped_data = data.groupby('epsilon').agg({'success_rate': ['min', 'max'], 'ssim': ['mean']})
+                if "resnet18" in name:
+                    axs[0, 0].fill_between(grouped_data.index, grouped_data['success_rate']['min'], grouped_data['success_rate']['max'], alpha=0.3, label=label)
+                    axs[1, 0].plot(grouped_data.index, grouped_data['ssim']['mean'], label=label)
+                elif "resnet50" in name:
+                    axs[0, 1].fill_between(grouped_data.index, grouped_data['success_rate']['min'], grouped_data['success_rate']['max'], alpha=0.3, label=label)
+                    axs[1, 1].plot(grouped_data.index, grouped_data['ssim']['mean'], label=label)
+            else:
+                if "resnet18" in name:
+                    axs[0, 0].plot(data['epsilon'], data['success_rate'], label=label)
+                    axs[1, 0].plot(data['epsilon'], data['ssim'], label=label)
+                elif "resnet50" in name:
+                    axs[0, 1].plot(data['epsilon'], data['success_rate'], label=label)
+                    axs[1, 1].plot(data['epsilon'], data['ssim'], label=label)
+
+            axs[0, 0].set_title(f"{attack} on {dataset} - ResNet18 Attack Success Rate")
+            axs[0, 0].set_xlabel('Epsilon')
+            axs[0, 0].set_ylabel('Success Rate')
+            axs[0, 0].legend()
+            axs[0, 0].grid(True)
+
+            axs[0, 1].set_title(f"{attack} on {dataset} - ResNet50 Attack Success Rate")
+            axs[0, 1].set_xlabel('Epsilon')
+            axs[0, 1].set_ylabel('Success Rate')
+            axs[0, 1].legend()
+            axs[0, 1].grid(True)
+
+            axs[1, 0].set_title(f"Training Data for {dataset} - ResNet18 Models (SSIM)")
+            axs[1, 0].set_xlabel('Epsilon')
+            axs[1, 0].set_ylabel('SSIM')
+            axs[1, 0].legend()
+            axs[1, 0].grid(True)
+
+            axs[1, 1].set_title(f"Training Data for {dataset} - ResNet50 Models (SSIM)")
+            axs[1, 1].set_xlabel('Epsilon')
+            axs[1, 1].set_ylabel('SSIM')
+            axs[1, 1].legend()
+            axs[1, 1].grid(True)
+
+            plt.tight_layout()
+            plt.show()
         else:
-            if "resnet18" in name:
-                axs[0, 0].plot(data['epsilon'], data['success_rate'], label=label)
-                axs[1, 0].plot(data['epsilon'], data['ssim'], label=label)
-            elif "resnet50" in name:
-                axs[0, 1].plot(data['epsilon'], data['success_rate'], label=label)
-                axs[1, 1].plot(data['epsilon'], data['ssim'], label=label)
-
-    axs[0, 0].set_title(f"{attack} on {dataset} - ResNet18 Attack Success Rate")
-    axs[0, 0].set_xlabel('Epsilon')
-    axs[0, 0].set_ylabel('Success Rate')
-    axs[0, 0].legend()
-    axs[0, 0].grid(True)
-
-    axs[0, 1].set_title(f"{attack} on {dataset} - ResNet50 Attack Success Rate")
-    axs[0, 1].set_xlabel('Epsilon')
-    axs[0, 1].set_ylabel('Success Rate')
-    axs[0, 1].legend()
-    axs[0, 1].grid(True)
-
-    axs[1, 0].set_title(f"Training Data for {dataset} - ResNet18 Models (SSIM)")
-    axs[1, 0].set_xlabel('Epsilon')
-    axs[1, 0].set_ylabel('SSIM')
-    axs[1, 0].legend()
-    axs[1, 0].grid(True)
-
-    axs[1, 1].set_title(f"Training Data for {dataset} - ResNet50 Models (SSIM)")
-    axs[1, 1].set_xlabel('Epsilon')
-    axs[1, 1].set_ylabel('SSIM')
-    axs[1, 1].legend()
-    axs[1, 1].grid(True)
-
-    plt.tight_layout()
-    plt.show()
+            raise ValueError(f"Attack {attack} not yet supported for plotting")

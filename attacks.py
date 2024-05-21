@@ -1,13 +1,11 @@
 import torch
 import random
-from art.attacks.evasion import FastGradientMethod
+from art.attacks.evasion import FastGradientMethod, DeepFool, SquareAttack
 from art.estimators.classification import PyTorchClassifier
 from torch.utils.data import DataLoader, TensorDataset
 from tqdm import tqdm
 import matplotlib.pyplot as plt
 import numpy as np
-import torchvision.transforms.functional as F
-import torchvision.datasets as datasets
 from skimage.metrics import structural_similarity as ssim
 import copy
 import csv
@@ -119,6 +117,20 @@ def firstSSIM(original, adv):
         channel_axis=2
     )
 
+
+def find_clip_values(loader: DataLoader):
+    min_val, max_val = float('inf'), float('-inf')
+    for images, _ in tqdm(loader, desc="Finding Clip Values", unit="batch"):
+        batch_min = torch.min(images)
+        batch_max = torch.max(images)
+
+        if batch_min < min_val:
+            min_val = batch_min.item()
+        if batch_max > max_val:
+            max_val = batch_max.item()
+
+    return min_val, max_val
+
 def perform(
         model: torch.nn.Module,
         name: str,
@@ -131,7 +143,7 @@ def perform(
         device: str = "mps",
     ):
 
-    sampled_loader = sampled(loader, model, device)
+    sampled_loader = sampled(loader, model, device, sample=100)
 
     classes = 100
     if dataset == "cifar10" or dataset == "fashionMNIST":
@@ -143,33 +155,21 @@ def perform(
     cpuModel = copy.deepcopy(model)
     cpuModel = cpuModel.to("cpu")
 
+    classifier = PyTorchClassifier(
+        model = cpuModel,
+        loss = criterion,
+        optimizer = optimizer,
+        input_shape= input_shape,
+        nb_classes= classes,
+        clip_values=find_clip_values(loader)
+    )
+
+    model = model.to(device)
+
+    results = []
     if attack == "fgsm":
-        classifier = PyTorchClassifier(
-            model = cpuModel,
-            loss = criterion,
-            optimizer = optimizer,
-            input_shape= input_shape,
-            nb_classes= classes,
-        )
-
-        model = model.to(device)
-        results = []
-
-        for epsilon in [
-            0.0005,
-            0.001,
-            0.005,
-            0.01,
-            0.02,
-            0.05,
-            0.1,
-            0.3,
-            0.5,
-            0.7,
-            1.0,
-        ]:
+        for epsilon in [0.001, 0.0025, 0.005, 0.0075, 0.01, 0.05, 0.1, 0.5, 1]:
             method = FastGradientMethod(estimator=classifier, eps=epsilon)
-
             if variant == "ParaLIF":
                 num_steps = 5
                 for _ in range(num_steps):
@@ -200,6 +200,75 @@ def perform(
                 results.append([epsilon, accuracy, perturbed_ssim])
 
         persist(name, variant, dataset, "fgsm", header=["epsilon", "accuracy", "ssim"], results=results)
+    elif attack == "deepfool":
+        for epsilon in [0.001, 0.0025, 0.005, 0.0075, 0.01, 0.05, 0.1, 0.5, 1]:
+            method = DeepFool(classifier=classifier, epsilon=epsilon, verbose=False)
+            if variant == "ParaLIF":
+                num_steps = 5
+                for _ in range(num_steps):
+                    correct, total = 0, 0
+                    ssim_sample = []
+                    for images, labels in tqdm(sampled_loader, desc=f"deepfool(Epsilon: {epsilon})"):
+                        adv = method.generate(x=images.cpu().numpy())
+                        adv = torch.tensor(adv).to(device)
+                        outputs = model(adv)
+                        correct += (torch.argmax(outputs, dim=1) == labels).sum().item()
+                        total += labels.size(0)
+                        ssim_sample.append(firstSSIM(images, adv))
+                    accuracy = 100 * correct / total
+                    perturbed_ssim = np.mean(ssim_sample)
+                    results.append([epsilon, accuracy, perturbed_ssim])
+            else:
+                correct, total = 0, 0
+                ssim_sample = []
+                for images, labels in tqdm(sampled_loader, desc=f"deepfool(Epsilon: {epsilon})"):
+                    adv = method.generate(x=images.cpu().numpy())
+                    adv = torch.tensor(adv).to(device)
+                    outputs = model(adv)
+                    correct += (torch.argmax(outputs, dim=1) == labels).sum().item()
+                    total += labels.size(0)
+                    ssim_sample.append(firstSSIM(images, adv))
+                accuracy = 100 * correct / total
+                perturbed_ssim = np.mean(ssim_sample)
+                results.append([epsilon, accuracy, perturbed_ssim])
+
+        persist(name, variant, dataset, "deepfool", header=["epsilon", "accuracy", "ssim"], results=results)
+    elif attack == "square@0.05":
+        for iterations in [1, 2, 3, 5, 10, 15, 20, 25, 50, 100]:
+            method = SquareAttack(estimator=classifier, max_iter=iterations, eps=0.05, verbose=False)
+
+            if variant == "ParaLIF":
+                num_steps = 5
+                for _ in range(num_steps):
+                    correct, total = 0, 0
+                    ssim_sample = []
+                    for images, labels in tqdm(sampled_loader, desc=f"square(Iter: {iterations})"):
+                        adv = method.generate(x=images.cpu().numpy())
+                        adv = torch.tensor(adv).to(device)
+                        plot(images[0], adv[0], labels[0], dataset=dataset)
+                        outputs = model(adv)
+                        correct += (torch.argmax(outputs, dim=1) == labels).sum().item()
+                        total += labels.size(0)
+                        ssim_sample.append(firstSSIM(images, adv))
+                    accuracy = 100 * correct / total
+                    perturbed_ssim = np.mean(ssim_sample)
+                    results.append([iterations, accuracy, perturbed_ssim])
+            else:
+                correct, total = 0, 0
+                ssim_sample = []
+                for images, labels in tqdm(sampled_loader, desc=f"square(Iter: {iterations})"):
+                    adv = method.generate(x=images.cpu().numpy())
+                    adv = torch.tensor(adv).to(device)
+                    outputs = model(adv)
+                    plot(images[0], adv[0], labels[0], dataset=dataset)
+                    correct += (torch.argmax(outputs, dim=1) == labels).sum().item()
+                    total += labels.size(0)
+                    ssim_sample.append(firstSSIM(images, adv))
+                accuracy = 100 * correct / total
+                perturbed_ssim = np.mean(ssim_sample)
+                results.append([iterations, accuracy, perturbed_ssim])
+
+        persist(name, variant, dataset, "square@0.05", header=["max_iterations", "accuracy", "ssim"], results=results)
     else:
         raise ValueError(f"Unknown attack: {attack}")
 
