@@ -110,6 +110,15 @@ def plot(original, adv, label, dataset="cifar10"):
 
     plt.show()
 
+def firstSSIM(original, adv):
+    return ssim(
+        denormalize(original[0]) ,
+        denormalize(adv[0]),
+        data_range=1.0,
+        multichannel=True,
+        channel_axis=2
+    )
+
 def perform(
         model: torch.nn.Module,
         name: str,
@@ -161,18 +170,36 @@ def perform(
         ]:
             method = FastGradientMethod(estimator=classifier, eps=epsilon)
 
-            correct = 0
-            total = 0
-            for images, labels in tqdm(sampled_loader, desc=f"FGSM(epsilon={epsilon})", unit="batch"):
-                adv = method.generate(x=images.cpu().numpy())
-                adv = torch.tensor(adv).to(device)
-                outputs = model(adv)
-                correct += (torch.argmax(outputs, dim=1) == labels).sum().item()
-                total += labels.size(0)
-            accuracy = 100 * correct / total
-            results.append([epsilon, accuracy])
+            if variant == "ParaLIF":
+                num_steps = 5
+                for _ in range(num_steps):
+                    correct, total = 0, 0
+                    ssim_sample = []
+                    for images, labels in tqdm(sampled_loader, desc=f"FGSM(epsilon={epsilon})", unit="batch"):
+                        adv = method.generate(x=images.cpu().numpy())
+                        adv = torch.tensor(adv).to(device)
+                        outputs = model(adv)
+                        correct += (torch.argmax(outputs, dim=1) == labels).sum().item()
+                        total += labels.size(0)
+                        ssim_sample.append(firstSSIM(images, adv))
+                    accuracy = 100 * correct / total
+                    perturbed_ssim = np.mean(ssim_sample)
+                    results.append([epsilon, accuracy, perturbed_ssim])
+            else:
+                correct, total = 0, 0
+                ssim_sample = []
+                for images, labels in tqdm(sampled_loader, desc=f"FGSM(epsilon={epsilon})", unit="batch"):
+                    adv = method.generate(x=images.cpu().numpy())
+                    adv = torch.tensor(adv).to(device)
+                    outputs = model(adv)
+                    correct += (torch.argmax(outputs, dim=1) == labels).sum().item()
+                    total += labels.size(0)
+                    ssim_sample.append(firstSSIM(images, adv))
+                accuracy = 100 * correct / total
+                perturbed_ssim = np.mean(ssim_sample)
+                results.append([epsilon, accuracy, perturbed_ssim])
 
-        persist(name, variant, dataset, "FGSM", header=["epsilon", "accuracy"], results=results)
+        persist(name, variant, dataset, "FGSM", header=["epsilon", "accuracy", "ssim"], results=results)
     else:
         raise ValueError(f"Unknown attack: {attack}")
 

@@ -47,7 +47,7 @@ results_parser = subparsers.add_parser("results", help="rendering the diagrams o
 results_subparser = results_parser.add_subparsers(dest="type", help="which type of results to show")
 
 attack_results_parser = results_subparser.add_parser("attack", help="rendering the diagrams of the attack results")
-attack_results_parser.add_argument("--attack", type=str, default="FGSM", help="which attack robustness results graphed")
+attack_results_parser.add_argument("--attack", type=str, default="fgsm", help="which attack robustness results graphed")
 
 training_results_parser = results_subparser.add_parser("training", help="rendering the diagrams relevant to training")
 training_results_parser.add_argument("--dataset", type=str, default="cifar100", help="which dataset to show training results for")
@@ -74,29 +74,18 @@ def train(
     best_accuracy, best_loss = metadata.accuracy, metadata.loss
 
     report = f"./results/train/{dataset}-{variant}-{name}.csv"
-    if not os.path.exists(report):
-        with open(report, mode='w', newline='') as file:
-            writer = csv.writer(file)
-            writer.writerow(["epoch", "loss", "accuracy"])
 
+    best_loss, best_accuracy = evaluate(model, criterion, test_loader, device)
+
+    if metadata.epoch == 0:
+        if not os.path.exists(report):
+            with open(report, mode='w', newline='') as file:
+                writer = csv.writer(file)
+                writer.writerow(["epoch", "loss", "accuracy"])
+                writer.writerow([0, best_loss, best_accuracy])
+
+    print(f"Current: {metadata.epoch}, Loss: {best_loss}, Accuracy: {best_accuracy}")
     for i in range(1, epochs + 1):
-        loss, accuracy = evaluate(model, criterion, test_loader, device)
-        if accuracy >= best_accuracy:
-            best_accuracy = accuracy
-            checkpoint.cache(
-                model,
-                dataset,
-                checkpoint.Metadata(
-                    name=name, epoch=i + metadata.epoch, accuracy=best_accuracy, loss=best_loss
-                ),
-                variant,
-            )
-        print(f"Epoch: {i + metadata.epoch}, Loss: {loss}, Accuracy: {accuracy}")
-
-        with open(report, mode='a', newline='') as file:
-            writer = csv.writer(file)
-            writer.writerow([i + metadata.epoch, loss, accuracy])
-
         for images, labels in tqdm(train_loader, desc="Training", unit="batch"):
             images, labels = images.to(device), labels.to(device)
             outputs = model(images)
@@ -106,11 +95,60 @@ def train(
             loss.backward()
             optimizer.step()
 
+        if variant == "ParaLIF":
+            # NOTE: in the case of ParaLIF, a stochastic model, we want capture std of accuracy/loss instead
+            # and save based on the "average" accuracy of the model.
+            num_runs = 5
+            total_loss, total_accuracy = 0, 0
+            for _ in range(num_runs):
+                loss, accuracy = evaluate(model, criterion, test_loader, device)
+                total_loss += loss
+                total_accuracy += accuracy
+                with open(report, mode='a', newline='') as file:
+                    # NOTE: we also write duplicate rows for each epoch for ParaLIF to measure STD DEV.
+                    writer = csv.writer(file)
+                    writer.writerow([i + metadata.epoch, loss, accuracy])
+
+            avg_loss = total_loss / num_runs
+            avg_accuracy = total_accuracy / num_runs
+
+            if avg_loss >= best_accuracy:
+                best_accuracy = avg_accuracy
+                best_loss = avg_loss
+                checkpoint.cache(
+                    model,
+                    dataset,
+                    checkpoint.Metadata(
+                        name=name, epoch=i + metadata.epoch, accuracy=best_accuracy, loss=best_loss
+                    ),
+                    variant,
+                )
+            print(f"Epoch: {i + metadata.epoch}, Avg_Loss: {avg_loss}, Avg_Accuracy: {avg_accuracy}")
+        else:
+            loss, accuracy = evaluate(model, criterion, test_loader, device)
+            if accuracy >= best_accuracy:
+                best_accuracy = accuracy
+                best_loss = loss
+                checkpoint.cache(
+                    model,
+                    dataset,
+                    checkpoint.Metadata(
+                        name=name, epoch=i + metadata.epoch, accuracy=best_accuracy, loss=best_loss
+                    ),
+                    variant,
+                )
+            print(f"Epoch: {i + metadata.epoch}, Loss: {loss}, Accuracy: {accuracy}")
+
+            with open(report, mode='a', newline='') as file:
+                writer = csv.writer(file)
+                writer.writerow([i + metadata.epoch, loss, accuracy])
+
 def evaluate(
     model: torch.nn.Module,
     criterion: Callable,
     data_loader: DataLoader,
     device: str = "cpu",
+    std: bool = False,
 ) -> Tuple[float, float]:
     model.eval()
     total_loss, correct, total = 0, 0, 0
@@ -208,7 +246,7 @@ elif args.command == "attack":
         criterion,
         optimizer,
         test_loader,
-        attack="fgsm",
+        attack=args.attack,
         dataset=args.dataset,
         device=args.device,
     )
