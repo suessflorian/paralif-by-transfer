@@ -175,7 +175,7 @@ def perform(
                 for _ in range(num_steps):
                     correct, total = 0, 0
                     ssim_sample = []
-                    for images, labels in tqdm(sampled_loader, desc=f"FGSM(epsilon={epsilon})", unit="batch"):
+                    for images, labels in tqdm(sampled_loader, desc=f"fgsm(epsilon={epsilon})", unit="batch"):
                         adv = method.generate(x=images.cpu().numpy())
                         adv = torch.tensor(adv).to(device)
                         outputs = model(adv)
@@ -188,7 +188,7 @@ def perform(
             else:
                 correct, total = 0, 0
                 ssim_sample = []
-                for images, labels in tqdm(sampled_loader, desc=f"FGSM(epsilon={epsilon})", unit="batch"):
+                for images, labels in tqdm(sampled_loader, desc=f"fgsm(epsilon={epsilon})", unit="batch"):
                     adv = method.generate(x=images.cpu().numpy())
                     adv = torch.tensor(adv).to(device)
                     outputs = model(adv)
@@ -199,14 +199,12 @@ def perform(
                 perturbed_ssim = np.mean(ssim_sample)
                 results.append([epsilon, accuracy, perturbed_ssim])
 
-        persist(name, variant, dataset, "FGSM", header=["epsilon", "accuracy", "ssim"], results=results)
+        persist(name, variant, dataset, "fgsm", header=["epsilon", "accuracy", "ssim"], results=results)
     else:
         raise ValueError(f"Unknown attack: {attack}")
 
 def persist(model: str, variant: str, dataset: str, attack: str, header = [], results = []):
-    filename = f"./results/{dataset}-{model}-{attack}.csv"
-    if variant != "":
-        filename = f"./results/{dataset}-{variant}-{model}-{attack}.csv"
+    filename = f"./results/{dataset}-{variant}-{model}-{attack}.csv"
 
     with open(filename, mode='w', newline='') as file:
         writer = csv.writer(file)

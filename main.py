@@ -83,6 +83,15 @@ def train(
                 writer = csv.writer(file)
                 writer.writerow(["epoch", "loss", "accuracy"])
                 writer.writerow([0, best_loss, best_accuracy])
+        if variant == "ParaLIF":
+            for _ in range(3):
+                loss, accuracy = evaluate(model, criterion, test_loader, device)
+                if accuracy >= best_accuracy:
+                    best_accuracy = accuracy
+                with open(report, mode='a', newline='') as file:
+                    # NOTE: we also write duplicate rows for each epoch for ParaLIF to measure STD DEV.
+                    writer = csv.writer(file)
+                    writer.writerow([0, loss, accuracy])
 
     print(f"Current: {metadata.epoch}, Loss: {best_loss}, Accuracy: {best_accuracy}")
     for i in range(1, epochs + 1):
@@ -251,9 +260,10 @@ elif args.command == "attack":
         device=args.device,
     )
 elif args.command == "results":
+    print(args.type)
     if args.type == "training":
         results.plot_training(args.dataset)
-    elif args.type == "attacks":
+    elif args.type == "attack":
         results.plot_attack(args.attack)
     else:
         raise ValueError("invalid results type")

@@ -50,16 +50,11 @@ def plot_attack(attack: str):
         print(f"no result files found for attack: {attack}")
         return
 
+
     data_dict = {}
     for file in result_files:
-        spec = file.replace('.csv', '').split('-')
-
-        # NOTE: we will deduce these given the results filename...
-        dataset, model, variant, attack = "", "", "", ""
-        if len(spec) == 3:
-            dataset, model, attack = spec
-        if len(spec) == 4:
-            dataset, variant, model, attack = spec
+        base_name = os.path.splitext(file)[0]
+        dataset, variant, model = base_name.split("-", 2)
 
         label = f"{model} ({variant})" if variant != "" else model
 
