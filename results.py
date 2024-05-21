@@ -1,7 +1,6 @@
 import os
 import pandas as pd
 import matplotlib.pyplot as plt
-from matplotlib.gridspec import GridSpec
 
 def plot_training(dataset: str):
     results_dir = "./results/train"
@@ -28,13 +27,13 @@ def plot_training(dataset: str):
             elif "resnet50" in name:
                 ax2.plot(data['epoch'], data['accuracy'], label=f'Accuracy - {label}')
 
-    ax1.set_title(f"Training Data for {dataset} - ResNet18 Models")
+    ax1.set_title(f"Test Accuracy: {dataset} - ResNet-18 Models")
     ax1.set_xlabel('Epoch')
     ax1.set_ylabel('Accuracy')
     ax1.legend()
     ax1.grid(True)
 
-    ax2.set_title(f"Training Data for {dataset} - ResNet50 Models")
+    ax2.set_title(f"Test Accuracy: {dataset} - ResNet-50 Models")
     ax2.set_xlabel('Epoch')
     ax2.set_ylabel('Accuracy')
     ax2.legend()
@@ -57,7 +56,7 @@ def plot_attack(dataset: str, attack: str):
 
         label = f"{name} ({variant})" if variant != "" else name
         data = pd.read_csv(os.path.join('./results', file))
-        data['success_rate'] = 1 - data['accuracy']
+        data['success_rate'] = (100 - data['accuracy']) / 100
 
         if variant == "ParaLIF":
             grouped_data = data.groupby('epsilon').agg({'success_rate': ['min', 'max'], 'ssim': ['mean']})
@@ -76,25 +75,25 @@ def plot_attack(dataset: str, attack: str):
                 axs[1, 1].plot(data['epsilon'], data['ssim'], label=label)
 
     axs[0, 0].set_title(f"{attack} on {dataset} - ResNet18 Attack Success Rate")
-    axs[0, 0].set_xlabel('Epoch')
+    axs[0, 0].set_xlabel('Epsilon')
     axs[0, 0].set_ylabel('Success Rate')
     axs[0, 0].legend()
     axs[0, 0].grid(True)
 
     axs[0, 1].set_title(f"{attack} on {dataset} - ResNet50 Attack Success Rate")
-    axs[0, 1].set_xlabel('Epoch')
+    axs[0, 1].set_xlabel('Epsilon')
     axs[0, 1].set_ylabel('Success Rate')
     axs[0, 1].legend()
     axs[0, 1].grid(True)
 
     axs[1, 0].set_title(f"Training Data for {dataset} - ResNet18 Models (SSIM)")
-    axs[1, 0].set_xlabel('Epoch')
+    axs[1, 0].set_xlabel('Epsilon')
     axs[1, 0].set_ylabel('SSIM')
     axs[1, 0].legend()
     axs[1, 0].grid(True)
 
     axs[1, 1].set_title(f"Training Data for {dataset} - ResNet50 Models (SSIM)")
-    axs[1, 1].set_xlabel('Epoch')
+    axs[1, 1].set_xlabel('Epsilon')
     axs[1, 1].set_ylabel('SSIM')
     axs[1, 1].legend()
     axs[1, 1].grid(True)
