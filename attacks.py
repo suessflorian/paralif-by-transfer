@@ -233,9 +233,9 @@ def perform(
                 results.append([epsilon, accuracy, perturbed_ssim])
 
         persist(name, variant, dataset, "deepfool", header=["epsilon", "accuracy", "ssim"], results=results)
-    elif attack == "square@0.05":
+    elif attack == "square@0.1":
         for iterations in [1, 2, 3, 5, 10, 15, 20, 25, 50, 100]:
-            method = SquareAttack(estimator=classifier, max_iter=iterations, eps=0.05, verbose=False)
+            method = SquareAttack(estimator=classifier, max_iter=iterations, eps=0.1, verbose=False)
 
             if variant == "ParaLIF":
                 num_steps = 5
@@ -251,6 +251,7 @@ def perform(
                         ssim_sample.append(firstSSIM(images, adv))
                     accuracy = 100 * correct / total
                     perturbed_ssim = np.mean(ssim_sample)
+                    print(f"Iterations: {iterations}, Accuracy: {accuracy}, SSIM: {perturbed_ssim}")
                     results.append([iterations, accuracy, perturbed_ssim])
             else:
                 correct, total = 0, 0
@@ -264,9 +265,10 @@ def perform(
                     ssim_sample.append(firstSSIM(images, adv))
                 accuracy = 100 * correct / total
                 perturbed_ssim = np.mean(ssim_sample)
+                print(f"Iterations: {iterations}, Accuracy: {accuracy}, SSIM: {perturbed_ssim}")
                 results.append([iterations, accuracy, perturbed_ssim])
 
-        persist(name, variant, dataset, "square@0.05", header=["max_iterations", "accuracy", "ssim"], results=results)
+        persist(name, variant, dataset, "square@0.1", header=["max_iterations", "accuracy", "ssim"], results=results)
     else:
         raise ValueError(f"Unknown attack: {attack}")
 
