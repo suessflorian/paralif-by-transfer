@@ -245,7 +245,6 @@ def perform(
                     for images, labels in tqdm(sampled_loader, desc=f"square(Iter: {iterations})"):
                         adv = method.generate(x=images.cpu().numpy())
                         adv = torch.tensor(adv).to(device)
-                        plot(images[0], adv[0], labels[0], dataset=dataset)
                         outputs = model(adv)
                         correct += (torch.argmax(outputs, dim=1) == labels).sum().item()
                         total += labels.size(0)
@@ -260,7 +259,6 @@ def perform(
                     adv = method.generate(x=images.cpu().numpy())
                     adv = torch.tensor(adv).to(device)
                     outputs = model(adv)
-                    plot(images[0], adv[0], labels[0], dataset=dataset)
                     correct += (torch.argmax(outputs, dim=1) == labels).sum().item()
                     total += labels.size(0)
                     ssim_sample.append(firstSSIM(images, adv))
