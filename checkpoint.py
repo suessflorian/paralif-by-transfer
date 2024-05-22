@@ -16,7 +16,10 @@ class Metadata:
     loss: float
 
 
-def cache(model: torch.nn.Module, dataset: str, metadata: Metadata, variant: str = ""):
+def cache(model: torch.nn.Module, dataset: str, metadata: Metadata, variant: str = "", scratch: bool = False):
+    if scratch:
+        dataset = f"{dataset}[scratch]"
+
     checkpoint = {
         "state_dict": model.state_dict(),
         "metadata": metadata,
@@ -28,7 +31,10 @@ def cache(model: torch.nn.Module, dataset: str, metadata: Metadata, variant: str
     print("-> checkpoint saved")
 
 
-def load(model: ResNet | LIFResNetDecoder | ParaLIFResNetDecoder, name: str, dataset: str, variant: str = "") -> Tuple[bool, ResNet | LIFResNetDecoder | ParaLIFResNetDecoder, Metadata]:
+def load(model: ResNet | LIFResNetDecoder | ParaLIFResNetDecoder, name: str, dataset: str, variant: str = "", scratch: bool = False) -> Tuple[bool, ResNet | LIFResNetDecoder | ParaLIFResNetDecoder, Metadata]:
+    if scratch:
+        dataset = f"{dataset}[scratch]"
+
     path = f"{CACHE}/{dataset}-{name}-checkpoint.pth"
     if variant != "":
         path = f"{CACHE}/{dataset}-{variant}-{name}-checkpoint.pth"

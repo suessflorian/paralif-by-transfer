@@ -35,6 +35,16 @@ test_parser.add_argument("--dataset", type=str, default="cifar100", help="datase
 test_parser.add_argument("--lif", action="store_true", help="the lif variant of the model")
 test_parser.add_argument("--paralif", action="store_true", help="the paralif variant of the model")
 
+scratch_parser = subparsers.add_parser("scratch", help="testing models from scratch")
+scratch_parser.add_argument("--epochs", type=int, default=5, help="number of epochs to train for")
+scratch_parser.add_argument("--batch", type=int, default=64, help="input batch size for training")
+scratch_parser.add_argument("--dataset", type=str, default="cifar100", help="dataset to train for")
+scratch_parser.add_argument("--lr", type=float, default=0.001, help="learning rate")
+scratch_parser.add_argument("--model", type=str, default="resnet18", help="the architecture")
+scratch_parser.add_argument("--device", type=str, default="mps", help="device to lay tensor work over")
+scratch_parser.add_argument("--lif", action="store_true", help="if the model should be converted a lif decoder variant")
+scratch_parser.add_argument("--paralif", action="store_true", help="if the model should be converted to a paralif decoder variant")
+
 attack_parser = subparsers.add_parser("attack", help="testing robustness of models")
 attack_parser.add_argument("--model", type=str, default="resnet18", help="the architecture")
 attack_parser.add_argument("--device", type=str, default="mps", help="device to lay tensor work over")
@@ -49,6 +59,9 @@ results_subparser = results_parser.add_subparsers(dest="type", help="which type 
 attack_results_parser = results_subparser.add_parser("attack", help="rendering the diagrams of the attack results")
 attack_results_parser.add_argument("--attack", type=str, default="fgsm", help="which attack robustness results graphed")
 attack_results_parser.add_argument("--dataset", type=str, default="cifar100", help="which dataset to show attack results for")
+
+scratch_results_parser = results_subparser.add_parser("scratch", help="rendering the diagrams of the transfer learning effectiveness results")
+scratch_results_parser.add_argument("--dataset", type=str, default="cifar100", help="which dataset to show for")
 
 training_results_parser = results_subparser.add_parser("training", help="rendering the diagrams relevant to training")
 training_results_parser.add_argument("--dataset", type=str, default="cifar100", help="which dataset to show training results for")
@@ -158,7 +171,6 @@ def evaluate(
     criterion: Callable,
     data_loader: DataLoader,
     device: str = "cpu",
-    std: bool = False,
 ) -> Tuple[float, float]:
     model.eval()
     total_loss, correct, total = 0, 0, 0
@@ -206,6 +218,30 @@ elif args.command == "train":
         model,
         args.model,
         args.dataset,
+        criterion,
+        train_loader,
+        test_loader,
+        optimizer,
+        args.epochs,
+        "LIF" if args.lif else "ParaLIF" if args.paralif else "",
+        args.device,
+        metadata,
+    )
+elif args.command == "scratch":
+    model, preprocess = models.resnet(args.model, args.dataset, pretrained=False)
+    if args.lif or args.paralif:
+        model = convert.convert(model, args.dataset, dest="LIF" if args.lif else "ParaLIF")
+    loaded, model, metadata = checkpoint.load(model, args.model, args.dataset, variant="LIF" if args.lif else "ParaLIF" if args.paralif else "", scratch=True)
+    model = model.to(args.device)
+
+    criterion = torch.nn.CrossEntropyLoss()
+    optimizer = torch.optim.SGD(model.parameters(), lr=args.lr, momentum=0.9, weight_decay=1e-4)
+    train_loader, test_loader = data.loader(args.dataset, preprocess, args.batch)
+
+    train(
+        model,
+        args.model,
+        f"{args.dataset}[scratch]",
         criterion,
         train_loader,
         test_loader,
@@ -263,6 +299,8 @@ elif args.command == "attack":
 elif args.command == "results":
     if args.type == "training":
         results.plot_training(args.dataset)
+    if args.type == "scratch":
+        results.transfer_learning(args.dataset)
     elif args.type == "attack":
         results.plot_attack(args.dataset, args.attack)
     else:

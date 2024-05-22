@@ -14,6 +14,7 @@ matplotlib = "*"
 scikit-image = "*"
 setuptools = "==69.5.1" # WARNING: issues in 70.0.0, pkg_resources import crap
 foolbox = "*"
+brokenaxes = "*"
 
 [dev-packages]
 black = "*"

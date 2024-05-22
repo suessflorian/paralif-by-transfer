@@ -16,14 +16,20 @@ TASK = {
     "fashionMNIST": hone(10),
 }
 
-def resnet(config: str, dataset: str) -> Tuple[ResNet, ImageClassification]:
+def resnet(config: str, dataset: str, pretrained: bool = True) -> Tuple[ResNet, ImageClassification]:
     print(f"ARCH: {config}")
     if config == "resnet18":
         weights = ResNet18_Weights.DEFAULT
-        model = resnet18(weights=weights)
+        if pretrained:
+            model = resnet18(weights=weights)
+        else:
+            model = resnet18()
     elif config == "resnet50":
         weights = ResNet50_Weights.DEFAULT
-        model = resnet50(weights=weights)
+        if pretrained:
+            model = resnet50(weights=weights)
+        else:
+            model = resnet50()
     else:
         raise ValueError(f"Unknown config: {config}")
 
