@@ -214,7 +214,7 @@ def perform(
 
         persist(name, variant, dataset, "fgsm", header=["epsilon", "accuracy", "ssim"], results=results)
     elif attack == "deepfool":
-        for epsilon in [0.001, 0.0025, 0.005, 0.0075, 0.01, 0.05, 0.1, 0.5, 1]:
+        for epsilon in [0.0002, 0.0004, 0.0008, 0.0016, 0.0032, 0.0064, 0.0128, 0.0256, 0.0512, 0.1024]:
             method = LinfDeepFoolAttack()
             if variant == "ParaLIF":
                 num_steps = 5
