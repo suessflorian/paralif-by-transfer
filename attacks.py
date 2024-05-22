@@ -1,7 +1,9 @@
 import torch
 import random
-from art.attacks.evasion import FastGradientMethod, DeepFool, SquareAttack
+from art.attacks.evasion import FastGradientMethod, SquareAttack
 from art.estimators.classification import PyTorchClassifier
+from foolbox.attacks.deepfool import LinfDeepFoolAttack
+from foolbox.models.pytorch import PyTorchModel
 from torch.utils.data import DataLoader, TensorDataset
 from tqdm import tqdm
 import matplotlib.pyplot as plt
@@ -83,7 +85,7 @@ def denormalize(tensor):
     tensor = np.clip(tensor, 0, 1)
     return tensor
 
-def plot(original, adv, label, dataset="cifar10"):
+def plot(original, adv, label, dataset="cifar10", title="attack"):
     original = denormalize(original)
     adv = denormalize(adv)
 
@@ -97,7 +99,9 @@ def plot(original, adv, label, dataset="cifar10"):
 
     label_name = get_label(dataset, label)
 
-    _, axes = plt.subplots(1, 2, figsize=(4, 2))
+    fig, axes = plt.subplots(1, 2, figsize=(4, 2))
+    fig.suptitle(title, fontsize=12)
+
     axes[0].imshow(original, interpolation='nearest')
     axes[0].set_title(f"Original Image\n(label={label_name})")
     axes[0].axis('off')
@@ -129,6 +133,7 @@ def find_clip_values(loader: DataLoader):
         if batch_max > max_val:
             max_val = batch_max.item()
 
+    print(min_val, max_val)
     return min_val, max_val
 
 def perform(
@@ -152,16 +157,24 @@ def perform(
     images, _ = next(iter(loader))
     input_shape = images.shape[1:]
 
+
+    clips = find_clip_values(loader)
+
     cpuModel = copy.deepcopy(model)
     cpuModel = cpuModel.to("cpu")
-
-    classifier = PyTorchClassifier(
+    artIntermediaryClassifier = PyTorchClassifier(
         model = cpuModel,
         loss = criterion,
         optimizer = optimizer,
         input_shape= input_shape,
         nb_classes= classes,
-        clip_values=find_clip_values(loader)
+        clip_values=clips
+    )
+
+    fbIntermediaryClassifier = PyTorchModel(
+        model,
+        bounds=clips,
+        device=device,
     )
 
     model = model.to(device)
@@ -169,7 +182,7 @@ def perform(
     results = []
     if attack == "fgsm":
         for epsilon in [0.001, 0.0025, 0.005, 0.0075, 0.01, 0.05, 0.1, 0.5, 1]:
-            method = FastGradientMethod(estimator=classifier, eps=epsilon)
+            method = FastGradientMethod(estimator=artIntermediaryClassifier, eps=epsilon)
             if variant == "ParaLIF":
                 num_steps = 5
                 for _ in range(num_steps):
@@ -202,40 +215,36 @@ def perform(
         persist(name, variant, dataset, "fgsm", header=["epsilon", "accuracy", "ssim"], results=results)
     elif attack == "deepfool":
         for epsilon in [0.001, 0.0025, 0.005, 0.0075, 0.01, 0.05, 0.1, 0.5, 1]:
-            method = DeepFool(classifier=classifier, epsilon=epsilon, verbose=False)
+            method = LinfDeepFoolAttack()
             if variant == "ParaLIF":
                 num_steps = 5
                 for _ in range(num_steps):
-                    correct, total = 0, 0
+                    accuracy = []
                     ssim_sample = []
                     for images, labels in tqdm(sampled_loader, desc=f"deepfool(Epsilon: {epsilon})"):
-                        adv = method.generate(x=images.cpu().numpy())
-                        adv = torch.tensor(adv).to(device)
-                        outputs = model(adv)
-                        correct += (torch.argmax(outputs, dim=1) == labels).sum().item()
-                        total += labels.size(0)
-                        ssim_sample.append(firstSSIM(images, adv))
-                    accuracy = 100 * correct / total
+                        _, perturbed_image, is_adv = method(fbIntermediaryClassifier, images, labels, epsilons=epsilon)
+                        accuracy.append(1 - is_adv.cpu().float().mean(axis=-1))
+                        ssim_sample.append(firstSSIM(images, perturbed_image))
+                    accuracy = np.mean(accuracy)
                     perturbed_ssim = np.mean(ssim_sample)
                     results.append([epsilon, accuracy, perturbed_ssim])
+                    print(f"Epsilon: {epsilon}, Accuracy: {accuracy}, SSIM: {perturbed_ssim}")
             else:
-                correct, total = 0, 0
+                accuracy = []
                 ssim_sample = []
                 for images, labels in tqdm(sampled_loader, desc=f"deepfool(Epsilon: {epsilon})"):
-                    adv = method.generate(x=images.cpu().numpy())
-                    adv = torch.tensor(adv).to(device)
-                    outputs = model(adv)
-                    correct += (torch.argmax(outputs, dim=1) == labels).sum().item()
-                    total += labels.size(0)
-                    ssim_sample.append(firstSSIM(images, adv))
-                accuracy = 100 * correct / total
+                    _, perturbed_image, is_adv = method(fbIntermediaryClassifier, images, labels, epsilons=epsilon)
+                    accuracy.append(1 - is_adv.cpu().float().mean(axis=-1))
+                    ssim_sample.append(firstSSIM(images, perturbed_image))
+                accuracy = np.mean(accuracy)
                 perturbed_ssim = np.mean(ssim_sample)
                 results.append([epsilon, accuracy, perturbed_ssim])
+                print(f"Epsilon: {epsilon}, Accuracy: {accuracy}, SSIM: {perturbed_ssim}")
 
         persist(name, variant, dataset, "deepfool", header=["epsilon", "accuracy", "ssim"], results=results)
     elif attack == "square@0.1":
         for iterations in [1, 2, 3, 5, 10, 15, 20, 25, 50, 100]:
-            method = SquareAttack(estimator=classifier, max_iter=iterations, eps=0.1, verbose=False)
+            method = SquareAttack(estimator=artIntermediaryClassifier, max_iter=iterations, eps=0.1, verbose=False)
 
             if variant == "ParaLIF":
                 num_steps = 5

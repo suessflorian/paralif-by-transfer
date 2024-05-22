@@ -12,6 +12,8 @@ snntorch = "*"
 adversarial-robustness-toolbox = "*"
 matplotlib = "*"
 scikit-image = "*"
+setuptools = "==69.5.1" # WARNING: issues in 70.0.0, pkg_resources import crap
+foolbox = "*"
 
 [dev-packages]
 black = "*"
