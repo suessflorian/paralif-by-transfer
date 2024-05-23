@@ -198,6 +198,7 @@ def perform(
                     accuracy = 100 * correct / total
                     perturbed_ssim = np.mean(ssim_sample)
                     results.append([epsilon, accuracy, perturbed_ssim])
+                    print(f"Epsilon: {epsilon}, Accuracy: {accuracy}, SSIM: {perturbed_ssim}")
             else:
                 correct, total = 0, 0
                 ssim_sample = []
@@ -211,6 +212,7 @@ def perform(
                 accuracy = 100 * correct / total
                 perturbed_ssim = np.mean(ssim_sample)
                 results.append([epsilon, accuracy, perturbed_ssim])
+                print(f"Epsilon: {epsilon}, Accuracy: {accuracy}, SSIM: {perturbed_ssim}")
 
         persist(name, variant, dataset, "fgsm", header=["epsilon", "accuracy", "ssim"], results=results)
     elif attack == "deepfool":

@@ -105,7 +105,7 @@ def plot_attack(dataset: str, attack: str):
     results_dir = "./results"
     csv_files = [f for f in os.listdir(results_dir) if f.startswith(dataset + "-") and f.endswith(f"{attack}.csv")]
 
-    if attack == "square":
+    if attack == "square@0.1":
         _, (ax1, ax2) = plt.subplots(1, 2, figsize=(18, 8))
         for csv_file in csv_files:
             file_path = os.path.join(results_dir, csv_file)
@@ -150,7 +150,10 @@ def plot_attack(dataset: str, attack: str):
             file_path = os.path.join(results_dir, csv_file)
             data = pd.read_csv(file_path)
 
-            data["success_rate"] = (100 - data["accuracy"]) / 100
+            if attack == "deepfool":
+                data["success_rate"] = (1 - data["accuracy"])
+            if attack == "fgsm":
+                data["success_rate"] = (100 - data["accuracy"]) / 100
 
             base_name = os.path.splitext(csv_file)[0]
             _, variant, model, _ = base_name.split("-", 3)
