@@ -3,7 +3,7 @@ import os
 from convert import LIFResNetDecoder, ParaLIFResNetDecoder
 from dataclasses import dataclass
 from typing import Tuple
-from torchvision.models import ResNet
+from torchvision.models import ResNet, VisionTransformer
 
 CACHE = "./checkpoint"
 
@@ -31,7 +31,7 @@ def cache(model: torch.nn.Module, dataset: str, metadata: Metadata, variant: str
     print("-> checkpoint saved")
 
 
-def load(model: ResNet | LIFResNetDecoder | ParaLIFResNetDecoder, name: str, dataset: str, variant: str = "", scratch: bool = False) -> Tuple[bool, ResNet | LIFResNetDecoder | ParaLIFResNetDecoder, Metadata]:
+def load(model: ResNet | VisionTransformer | LIFResNetDecoder | ParaLIFResNetDecoder, name: str, dataset: str, variant: str = "", scratch: bool = False) -> Tuple[bool, ResNet | VisionTransformer | LIFResNetDecoder | ParaLIFResNetDecoder, Metadata]:
     if scratch:
         dataset = f"{dataset}[scratch]"
 

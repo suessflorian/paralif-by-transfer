@@ -18,15 +18,28 @@ torch.manual_seed(69)
 parser = argparse.ArgumentParser(description="Exploring CIFAR-100 S-NN models")
 subparsers = parser.add_subparsers(dest="command")
 
-train_parser = subparsers.add_parser("train", help="training models")
-train_parser.add_argument("--epochs", type=int, default=5, help="number of epochs to train for")
-train_parser.add_argument("--batch", type=int, default=64, help="input batch size for training")
-train_parser.add_argument("--dataset", type=str, default="cifar100", help="dataset to train for")
-train_parser.add_argument("--lr", type=float, default=0.001, help="learning rate")
-train_parser.add_argument("--model", type=str, default="resnet18", help="the architecture")
-train_parser.add_argument("--device", type=str, default="mps", help="device to lay tensor work over")
-train_parser.add_argument("--lif", action="store_true", help="if the model should be converted a lif decoder variant")
-train_parser.add_argument("--paralif", action="store_true", help="if the model should be converted to a paralif decoder variant")
+# NOTE: resnet trainer
+rtrainer_parser = subparsers.add_parser("rtrainer", help="training resnet models")
+rtrainer_parser.add_argument("--epochs", type=int, default=5, help="number of epochs to train for")
+rtrainer_parser.add_argument("--batch", type=int, default=64, help="input batch size for training")
+rtrainer_parser.add_argument("--dataset", type=str, default="cifar100", help="dataset to train for")
+rtrainer_parser.add_argument("--lr", type=float, default=0.001, help="learning rate")
+rtrainer_parser.add_argument("--arch", type=str, default="resnet18", help="the architecture")
+rtrainer_parser.add_argument("--device", type=str, default="mps", help="device to lay tensor work over")
+rtrainer_parser.add_argument("--lif", action="store_true", help="if the model should be converted a lif decoder variant")
+rtrainer_parser.add_argument("--paralif", action="store_true", help="if the model should be converted to a paralif decoder variant")
+
+# NOTE: vision transformer trainer
+vtrainer_parser = subparsers.add_parser("vtrainer", help="training vision transformer models")
+vtrainer_parser.add_argument("--epochs", type=int, default=10, help="number of epochs to train for")
+vtrainer_parser.add_argument("--warmup", type=int, default=2, help="number of warmup epochs")
+vtrainer_parser.add_argument("--warmup-decay", type=int, default=0.033, help="warmup decay factor")
+vtrainer_parser.add_argument("--weight-decay", type=int, default=0.3, help="warmup decay factor")
+vtrainer_parser.add_argument("--batch", type=int, default=512, help="input batch size for training")
+vtrainer_parser.add_argument("--dataset", type=str, default="cifar100", help="dataset to train for")
+vtrainer_parser.add_argument("--lr", type=float, default=0.003, help="learning rate")
+vtrainer_parser.add_argument("--arch", type=str, default="vit_b_16", help="the architecture")
+vtrainer_parser.add_argument("--device", type=str, default="mps", help="device to lay tensor work over")
 
 test_parser = subparsers.add_parser("test", help="testing models")
 test_parser.add_argument("--model", type=str, default="resnet18", help="the architecture")
@@ -69,10 +82,10 @@ training_results_parser.add_argument("--dataset", type=str, default="cifar100", 
 
 args = parser.parse_args()
 
-if args.command != "results" and (args.lif and args.paralif):
+if args.command != "results" and args.command != "vtrainer" and (args.lif and args.paralif):
     raise ValueError("cannot convert to both LIF and ParaLIF... abort")
 
-def train(
+def rtrain(
     model: torch.nn.Module,
     name: str,
     dataset: str,
@@ -167,6 +180,109 @@ def train(
                 writer = csv.writer(file)
                 writer.writerow([i + metadata.epoch, loss, accuracy])
 
+def vtrain(
+    model: torch.nn.Module,
+    name: str,
+    dataset: str,
+    criterion: Callable,
+    train_loader: DataLoader,
+    test_loader: DataLoader,
+    optimizer: torch.optim.Optimizer,
+    warmup: int,
+    warmup_scheduler: torch.optim.lr_scheduler.LRScheduler,
+    scheduler: torch.optim.lr_scheduler.LRScheduler,
+    epochs: int,
+    variant: str = "",
+    device: str = "cpu",
+    metadata: checkpoint.Metadata = checkpoint.Metadata("resnet18", 0, 0, float("inf")),
+):
+    model.train()
+    best_accuracy, best_loss = metadata.accuracy, metadata.loss
+
+    report = f"./results/train/{dataset}-{variant}-{name}.csv"
+
+    best_loss, best_accuracy = evaluate(model, criterion, test_loader, device)
+
+    if metadata.epoch == 0:
+        if not os.path.exists(report):
+            with open(report, mode='w', newline='') as file:
+                writer = csv.writer(file)
+                writer.writerow(["epoch", "loss", "accuracy"])
+                writer.writerow([0, best_loss, best_accuracy])
+        if variant == "ParaLIF":
+            for _ in range(3):
+                loss, accuracy = evaluate(model, criterion, test_loader, device)
+                if accuracy >= best_accuracy:
+                    best_accuracy = accuracy
+                with open(report, mode='a', newline='') as file:
+                    # NOTE: we also write duplicate rows for each epoch for ParaLIF to measure STD DEV.
+                    writer = csv.writer(file)
+                    writer.writerow([0, loss, accuracy])
+
+    print(f"Current: {metadata.epoch}, Loss: {best_loss}, Accuracy: {best_accuracy}")
+    for i in range(1, epochs + 1):
+        for images, labels in tqdm(train_loader, desc="Training", unit="batch"):
+            images, labels = images.to(device), labels.to(device)
+            outputs = model(images)
+            loss = criterion(outputs, labels)
+
+            optimizer.zero_grad()
+            loss.backward()
+            optimizer.step()
+
+            if i <= warmup:
+                warmup_scheduler.step()
+            else:
+                scheduler.step()
+
+        if variant == "ParaLIF":
+            # NOTE: in the case of ParaLIF, a stochastic model, we want capture std of accuracy/loss instead
+            # and save based on the "average" accuracy of the model.
+            num_runs = 5
+            total_loss, total_accuracy = 0, 0
+            for _ in range(num_runs):
+                loss, accuracy = evaluate(model, criterion, test_loader, device)
+                total_loss += loss
+                total_accuracy += accuracy
+                with open(report, mode='a', newline='') as file:
+                    # NOTE: we also write duplicate rows for each epoch for ParaLIF to measure STD DEV.
+                    writer = csv.writer(file)
+                    writer.writerow([i + metadata.epoch, loss, accuracy])
+
+            avg_loss = total_loss / num_runs
+            avg_accuracy = total_accuracy / num_runs
+
+            if avg_loss >= best_accuracy:
+                best_accuracy = avg_accuracy
+                best_loss = avg_loss
+                checkpoint.cache(
+                    model,
+                    dataset,
+                    checkpoint.Metadata(
+                        name=name, epoch=i + metadata.epoch, accuracy=best_accuracy, loss=best_loss
+                    ),
+                    variant,
+                )
+            print(f"Epoch: {i + metadata.epoch}, Avg_Loss: {avg_loss}, Avg_Accuracy: {avg_accuracy}")
+        else:
+            loss, accuracy = evaluate(model, criterion, test_loader, device)
+            if accuracy >= best_accuracy:
+                best_accuracy = accuracy
+                best_loss = loss
+                checkpoint.cache(
+                    model,
+                    dataset,
+                    checkpoint.Metadata(
+                        name=name, epoch=i + metadata.epoch, accuracy=best_accuracy, loss=best_loss
+                    ),
+                    variant,
+                )
+            print(f"Epoch: {i + metadata.epoch}, Loss: {loss}, Accuracy: {accuracy}")
+
+            with open(report, mode='a', newline='') as file:
+                writer = csv.writer(file)
+                writer.writerow([i + metadata.epoch, loss, accuracy])
+
 def evaluate(
     model: torch.nn.Module,
     criterion: Callable,
@@ -193,31 +309,31 @@ def evaluate(
 if not args.command:
     parser.print_help()
     raise ValueError("no command specified")
-elif args.command == "train":
-    model, preprocess = models.resnet(args.model, args.dataset)
-    loaded, vanilla, metadata = checkpoint.load(model, args.model, args.dataset)
+elif args.command == "rtrainer":
+    model, preprocess = models.resnet(args.arch, args.dataset)
+    loaded, vanilla, metadata = checkpoint.load(model, args.arch, args.dataset)
 
     if args.lif or args.paralif:
         if not loaded:
             raise ValueError("must train vanilla model first... abort")
         model = convert.convert(vanilla, args.dataset, dest="LIF" if args.lif else "ParaLIF")
         # NOTE: check if we already have a converted model checkpointed ready to continue on
-        loaded, model, metadata = checkpoint.load(model, args.model, args.dataset, variant="LIF" if args.lif else "ParaLIF")
+        loaded, model, metadata = checkpoint.load(model, args.arch, args.dataset, variant="LIF" if args.lif else "ParaLIF")
         print("training LIF decoder model...")
     else:
         print("training vanilla model...")
         model = vanilla
 
-    model = freeze.freeze(model, depth=freeze.Depth.LAYER3)
+    model = freeze.freeze(model, depth=freeze.Depth.THREE)
     model = model.to(args.device)
 
     criterion = torch.nn.CrossEntropyLoss()
     optimizer = torch.optim.SGD(model.parameters(), lr=args.lr, momentum=0.9, weight_decay=1e-4)
     train_loader, test_loader = data.loader(args.dataset, preprocess, args.batch)
 
-    train(
+    rtrain(
         model,
-        args.model,
+        args.arch,
         args.dataset,
         criterion,
         train_loader,
@@ -225,6 +341,37 @@ elif args.command == "train":
         optimizer,
         args.epochs,
         "LIF" if args.lif else "ParaLIF" if args.paralif else "",
+        args.device,
+        metadata,
+    )
+elif args.command == "vtrainer":
+    model, preprocess = models.vit(args.arch, args.dataset)
+    loaded, vanilla, metadata = checkpoint.load(model, args.arch, args.dataset)
+
+    model = freeze.freeze(model, depth=freeze.Depth.THREE)
+    model = model.to(args.device)
+
+    # NOTE: we mostly defer the finding of the correct training hyper parameters for ViT used on ImageNET
+    # https://github.com/pytorch/vision/tree/main/references/classification#vit_b_16
+    criterion = torch.nn.CrossEntropyLoss()
+    optimizer = torch.optim.AdamW(model.parameters(), lr=args.lr, weight_decay=args.weight_decay)
+    warmup_scheduler = torch.optim.lr_scheduler.LambdaLR(optimizer, lr_lambda=lambda epoch: args.warmup_decay + (1 - args.warmup_decay) * min(1.0, args.warmup / args.warmup))
+    lr_scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(optimizer, T_max=args.epochs - args.warmup)
+    train_loader, test_loader = data.loader(args.dataset, preprocess, args.batch)
+
+    vtrain(
+        model,
+        args.arch,
+        args.dataset,
+        criterion,
+        train_loader,
+        test_loader,
+        optimizer,
+        args.warmup,
+        warmup_scheduler,
+        lr_scheduler,
+        args.epochs,
+        "",
         args.device,
         metadata,
     )
@@ -240,7 +387,7 @@ elif args.command == "scratch":
     criterion = torch.nn.CrossEntropyLoss()
     optimizer = torch.optim.SGD(model.parameters(), lr=args.lr, momentum=0.9, weight_decay=1e-4)
 
-    train(
+    rtrain(
         model,
         args.model,
         f"{args.dataset}[scratch]",

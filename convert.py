@@ -3,7 +3,7 @@ import snntorch as snn
 import torch
 import encoding
 import paralif
-from torchvision.models import ResNet
+from torchvision.models import ResNet, VisionTransformer
 
 def min_max_norm(batch: torch.Tensor) -> torch.Tensor:
     min_vals = batch.amin(dim=1, keepdim=True)
@@ -66,7 +66,7 @@ class LIFResNetDecoder(nn.Module):
         self.lif.to(device)
         return self
 
-def convert(model: ResNet | LIFResNetDecoder | ParaLIFResNetDecoder, dataset: str, dest: str = "LIF") -> LIFResNetDecoder | ParaLIFResNetDecoder:
+def convert(model: ResNet | VisionTransformer | LIFResNetDecoder | ParaLIFResNetDecoder, dataset: str, dest: str = "LIF") -> LIFResNetDecoder | ParaLIFResNetDecoder:
     if isinstance(model, ResNet):
         if dest == "LIF":
             return LIFResNetDecoder(model, num_classes=100 if dataset == "cifar100" else 10)
@@ -74,5 +74,7 @@ def convert(model: ResNet | LIFResNetDecoder | ParaLIFResNetDecoder, dataset: st
             return ParaLIFResNetDecoder(model, num_classes=100 if dataset == "cifar100" else 10)
         else:
             raise ValueError(f"Unknown conversion destination: {dest}")
+    if isinstance(model, VisionTransformer):
+        raise NotImplementedError("ViT conversion not yet supported")
 
     return model
