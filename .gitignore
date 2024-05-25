@@ -1,1 +1,4 @@
 data
+
+# thing is just a bit big
+checkpoint/**vit_b_16**
