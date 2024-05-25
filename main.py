@@ -29,7 +29,7 @@ rtrainer_parser.add_argument("--arch", type=str, default="resnet18", help="the a
 rtrainer_parser.add_argument("--device", type=str, default="mps", help="device to lay tensor work over")
 rtrainer_parser.add_argument("--lif", action="store_true", help="if the model should be converted a lif decoder variant")
 rtrainer_parser.add_argument("--paralif", action="store_true", help="if the model should be converted to a paralif decoder variant")
-rtrainer_parser.add_argument("--gcs", type=bool, default=True, help="indication of whether source/store models gcsly or not")
+rtrainer_parser.add_argument("--gcs", type=bool, default=False, help="indication of whether source/store models gcsly or not")
 
 # NOTE: vision transformer trainer
 vtrainer_parser = subparsers.add_parser("vtrainer", help="training vision transformer models")

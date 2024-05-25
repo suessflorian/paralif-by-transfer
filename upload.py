@@ -1,6 +1,6 @@
 from google.cloud import storage
 
-BUCKET_NAME = "florians_checkpoints"
+BUCKET_NAME = "florians_results"
 
 def gcs(local_path: str, gcs_path: str):
     client = storage.Client()

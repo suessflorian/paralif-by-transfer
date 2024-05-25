@@ -10,7 +10,7 @@ from google.cloud import storage
 
 CACHE = "./checkpoint"
 PREFIX = "checkpoint"
-BUCKET_NAME = "florians_checkpoints"
+BUCKET_NAME = "florians_results"
 
 
 @dataclass
