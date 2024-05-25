@@ -1,11 +1,11 @@
-# Spiking ResNet Architectures/Variants Re: Advaserial Robustness
-We want to know the robustness characteristics of LIF/ParaLIF based neurons. This study looks at utility of adopting ParaLIF/LIF for the decoder stage of a ResNet.
+# Spiking ResNet/ViT Architectures/Variants Re: Advaserial Robustness
+We want to know how the robustness characteristics of LIF/ParaLIF based neurons scale. This study looks at utility of adopting ParaLIF/LIF for the decoder stages of a ResNet and ViT.
 We heavily employ transfer learning techniques alongsie an ANN-SNN conversion tactic to produce higher performing hybrid ANN/SNN models.
 
 ## Descriptions
-ResNet-18 is more for quick indication of progress really, **ResNet-50** is a more interesting benchmark.
+ResNet-18 is more for quick indication of progress really, **ResNet-50** is a more interesting benchmark and **ViT 16B** is more or less a fun exercise to walk through deployment processes (against GCP).
 
-- **Default**: The standard architecture of ResNet without any modifications.
+- **Default**: The standard architecture of ResNet/ViT without any modifications.
 - **LIF**: An architecture variant where decoder neurons are replaced with Leaky Integrate-and-Fire (LIF) neurons.
 - **ParaLIF**: A variant similar to LIF, where decoder neurons are Parallel Leaky Integrate-and-Fire (ParaLIF) neurons. Implementation of the neuron is pulled [from here](https://github.com/NECOTIS/Parallelizable-Leaky-Integrate-and-Fire-Neuron) and lives copied in `paralif.py`.
 
@@ -15,7 +15,7 @@ ResNet-18 is more for quick indication of progress really, **ResNet-50** is a mo
 - We transfer model weights that were learnt when heavily trained on ImageNet via adopting [pre-trained models](https://pytorch.org/vision/stable/models.html).
     - See [ImageNet performance here](https://pytorch.org/vision/stable/models.html#table-of-all-available-classification-weights).
 - We take the preprocessing done to ImageNet images and apply them to the images in our specific datasets.
-- We identify the 4 residual layers of ResNet as candidate "encoder depths". Initial depth is known to contain "low-level" features and as the depth progresses, features become more "specialisd"/"high-level" for a task.
+- We identify the 4 residual layers of ResNet as candidate "encoder depths" (we split the 11 layer depths of the ViT encoder over groups of 3). Initial depth is known to contain "low-level" features and as the depth progresses, features become more "specialisd"/"high-level" for a task.
 - We **freeze** the model up to a depth, by prohibiting a layed computation graph overtop of any frozen layers.
     - Decided to freeze up to depth 3, as we want to fine-tune only "high-level" features.
 - We then fine-tune this model onto various datasets like `CIFAR-100`, `CIFAR-10`, `FashionMNIST` and so on via native backpropogation.
@@ -26,8 +26,7 @@ ResNet-18 is more for quick indication of progress really, **ResNet-50** is a mo
 _The <X, Y> represents how long the training process took; on continuous model for X epochs, and Y epochs on the branched LIF/ParaLIF model_.
 
 - We do have checkpoint files for everything, so these are all readily verifiable.
-- _Coming soon_, for branched ResNet's (LIF/ParaLIF) variants, we're also interested in the standard deviation of all results.
-    - This is will be found via setting manual seeds (see [`torch.manual_seed`](https://pytorch.org/docs/stable/generated/torch.manual_seed.html))
+- For these branched ResNet's (ParaLIF) variants, we're also interested in the standard deviation of all inferences as ParaLIF is noticeably non-deterministic.
 
 ### CIFAR-10
 
@@ -57,5 +56,16 @@ _The <X, Y> represents how long the training process took; on continuous model f
 
 ![Fashion-MNIST](./results/fashion.png)
 
+## Learning rate contrast of double transfer learning approach
+We succesfully get to the top performing grades quickly on CIFAR-10 compared to training from scratch at a much quicker epoch rate too thanks to proper layer freezing.
+
+![Contrast-Learning](./results/transfer-contrast.png)
+
 ## Robustness Measures
 As this is where our focus predominately lies, we provide a pipeline of well known attacks at various intensities and contrast measure robustness.
+
+- **Square Attack**, a blackbox attack (provided by [`ART`](https://github.com/Trusted-AI/adversarial-robustness-toolbox)); see: https://arxiv.org/abs/1912.00049
+- **Deepfool Attack**, a whitebox attack (provided by [`foolbox`](https://github.com/bethgelab/foolbox)) see: https://arxiv.org/abs/1511.04599
+- **Fast Gradient Sign Method**, a (super classic) whitebox attack (provided by [`foolbox`](https://github.com/bethgelab/foolbox)) see: https://arxiv.org/abs/1412.6572
+
+All of these results are labeled and in `./results`.
