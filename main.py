@@ -42,6 +42,7 @@ scratch_parser.add_argument("--dataset", type=str, default="cifar100", help="dat
 scratch_parser.add_argument("--lr", type=float, default=0.001, help="learning rate")
 scratch_parser.add_argument("--model", type=str, default="resnet18", help="the architecture")
 scratch_parser.add_argument("--device", type=str, default="mps", help="device to lay tensor work over")
+scratch_parser.add_argument("--eval", action="store_true", help="if you want to evaluate the model instead of train")
 scratch_parser.add_argument("--lif", action="store_true", help="if the model should be converted a lif decoder variant")
 scratch_parser.add_argument("--paralif", action="store_true", help="if the model should be converted to a paralif decoder variant")
 
@@ -234,9 +235,10 @@ elif args.command == "scratch":
     loaded, model, metadata = checkpoint.load(model, args.model, args.dataset, variant="LIF" if args.lif else "ParaLIF" if args.paralif else "", scratch=True)
     model = model.to(args.device)
 
+    train_loader, test_loader = data.loader(args.dataset, preprocess, args.batch)
+
     criterion = torch.nn.CrossEntropyLoss()
     optimizer = torch.optim.SGD(model.parameters(), lr=args.lr, momentum=0.9, weight_decay=1e-4)
-    train_loader, test_loader = data.loader(args.dataset, preprocess, args.batch)
 
     train(
         model,

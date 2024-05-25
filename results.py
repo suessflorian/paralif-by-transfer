@@ -63,10 +63,10 @@ def transfer_learning(dataset: str):
         grouped_data = data.groupby('epoch')['accuracy'].agg(['min', 'max'])
         if scratch:
             ax = ax2
-            ax.fill_between(grouped_data.index, grouped_data['min'], grouped_data['max'], alpha=0.3, label=f'Accuracy - {label}')
+            ax.fill_between(grouped_data.index, grouped_data['min'], grouped_data['max'], alpha=0.3, label=label)
         else:
             ax = ax1
-            ax.fill_between(grouped_data.index, grouped_data['min'], grouped_data['max'], alpha=0.3, label=f'Accuracy - {label}')
+            ax.fill_between(grouped_data.index, grouped_data['min'], grouped_data['max'], alpha=0.3, label=label)
 
     ax1.set_ylim(0.8, 1)
     ax2.set_ylim(0.25, 0.45)
@@ -86,7 +86,7 @@ def transfer_learning(dataset: str):
     ax2.plot((-d, +d), (1 - d, 1 + d), **kwargs)
     ax2.plot((1 - d, 1 + d), (1 - d, 1 + d), **kwargs)
 
-    fig.suptitle(f"Test Accuracy: {dataset} - ResNet-18 Models", fontsize=16)
+    fig.suptitle(f"Contrast Transfered Models with Scratch Models On {dataset}", fontsize=16)
     ax2.set_xlabel('Epoch')
     ax1.set_ylabel('Accuracy')
     ax2.set_ylabel('Accuracy')
