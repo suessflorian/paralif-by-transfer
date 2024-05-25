@@ -17,7 +17,6 @@ TASK = {
 }
 
 def resnet(config: str, dataset: str, pretrained: bool = True) -> Tuple[ResNet, ImageClassification]:
-    print(f"ARCH: {config}")
     if config == "resnet18":
         weights = ResNet18_Weights.DEFAULT
         if pretrained:

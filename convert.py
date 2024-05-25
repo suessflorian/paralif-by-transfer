@@ -67,28 +67,12 @@ class LIFResNetDecoder(nn.Module):
         return self
 
 def convert(model: ResNet | LIFResNetDecoder | ParaLIFResNetDecoder, dataset: str, dest: str = "LIF") -> LIFResNetDecoder | ParaLIFResNetDecoder:
-    print(f"VARIANT: {dest}")
-    if dest == "LIF":
-        if isinstance(model, ResNet):
-            if dataset == "cifar10":
-                return LIFResNetDecoder(model, num_classes=10)
-            elif dataset == "cifar100":
-                return LIFResNetDecoder(model, num_classes=100)
-            elif dataset == "fashionMNIST":
-                return LIFResNetDecoder(model, num_classes=10)
-            else:
-                raise ValueError(f"Unknown dataset: {dataset}")
-    elif dest == "ParaLIF":
-        if isinstance(model, ResNet):
-            if dataset == "cifar10":
-                return ParaLIFResNetDecoder(model, num_classes=10)
-            elif dataset == "cifar100":
-                return ParaLIFResNetDecoder(model, num_classes=100)
-            elif dataset == "fashionMNIST":
-                return ParaLIFResNetDecoder(model, num_classes=10)
-            else:
-                raise ValueError(f"Unknown dataset: {dataset}")
-    else:
-        raise ValueError(f"Unknown conversion destination: {dest}")
+    if isinstance(model, ResNet):
+        if dest == "LIF":
+            return LIFResNetDecoder(model, num_classes=100 if dataset == "cifar100" else 10)
+        elif dest == "ParaLIF":
+            return ParaLIFResNetDecoder(model, num_classes=100 if dataset == "cifar100" else 10)
+        else:
+            raise ValueError(f"Unknown conversion destination: {dest}")
 
     return model
