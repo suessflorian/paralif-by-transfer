@@ -69,3 +69,7 @@ As this is where our focus predominately lies, we provide a pipeline of well kno
 - **Fast Gradient Sign Method**, a (super classic) whitebox attack (provided by [`foolbox`](https://github.com/bethgelab/foolbox)) see: https://arxiv.org/abs/1412.6572
 
 All of these results are labeled and in `./results`.
+
+---
+
+I apologise for the repetitive code quality, opted for this due to this all being highly experimental.

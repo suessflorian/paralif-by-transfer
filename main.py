@@ -6,6 +6,7 @@ import torch
 import data
 import attacks
 import results
+import upload
 import argparse
 import os
 import csv
@@ -28,6 +29,7 @@ rtrainer_parser.add_argument("--arch", type=str, default="resnet18", help="the a
 rtrainer_parser.add_argument("--device", type=str, default="mps", help="device to lay tensor work over")
 rtrainer_parser.add_argument("--lif", action="store_true", help="if the model should be converted a lif decoder variant")
 rtrainer_parser.add_argument("--paralif", action="store_true", help="if the model should be converted to a paralif decoder variant")
+rtrainer_parser.add_argument("--gcs", type=bool, default=True, help="indication of whether source/store models gcsly or not")
 
 # NOTE: vision transformer trainer
 vtrainer_parser = subparsers.add_parser("vtrainer", help="training vision transformer models")
@@ -35,11 +37,12 @@ vtrainer_parser.add_argument("--epochs", type=int, default=10, help="number of e
 vtrainer_parser.add_argument("--warmup", type=int, default=2, help="number of warmup epochs")
 vtrainer_parser.add_argument("--warmup-decay", type=int, default=0.033, help="warmup decay factor")
 vtrainer_parser.add_argument("--weight-decay", type=int, default=0.3, help="warmup decay factor")
-vtrainer_parser.add_argument("--batch", type=int, default=512, help="input batch size for training")
+vtrainer_parser.add_argument("--batch", type=int, default=128, help="input batch size for training")
 vtrainer_parser.add_argument("--dataset", type=str, default="cifar100", help="dataset to train for")
 vtrainer_parser.add_argument("--lr", type=float, default=0.003, help="learning rate")
 vtrainer_parser.add_argument("--arch", type=str, default="vit_b_16", help="the architecture")
 vtrainer_parser.add_argument("--device", type=str, default="mps", help="device to lay tensor work over")
+vtrainer_parser.add_argument("--gcs", type=bool, default=False, help="indication of whether source/store models from gcs or not")
 
 test_parser = subparsers.add_parser("test", help="testing models")
 test_parser.add_argument("--model", type=str, default="resnet18", help="the architecture")
@@ -47,6 +50,7 @@ test_parser.add_argument("--device", type=str, default="mps", help="device to la
 test_parser.add_argument("--dataset", type=str, default="cifar100", help="dataset to train for")
 test_parser.add_argument("--lif", action="store_true", help="the lif variant of the model")
 test_parser.add_argument("--paralif", action="store_true", help="the paralif variant of the model")
+test_parser.add_argument("--gcs", type=bool, default=False, help="indication of whether source/store models from gcs or not")
 
 scratch_parser = subparsers.add_parser("scratch", help="testing models from scratch")
 scratch_parser.add_argument("--epochs", type=int, default=5, help="number of epochs to train for")
@@ -58,6 +62,7 @@ scratch_parser.add_argument("--device", type=str, default="mps", help="device to
 scratch_parser.add_argument("--eval", action="store_true", help="if you want to evaluate the model instead of train")
 scratch_parser.add_argument("--lif", action="store_true", help="if the model should be converted a lif decoder variant")
 scratch_parser.add_argument("--paralif", action="store_true", help="if the model should be converted to a paralif decoder variant")
+scratch_parser.add_argument("--gcs", type=bool, default=False, help="indication of whether source/store models from gcs or not")
 
 attack_parser = subparsers.add_parser("attack", help="testing robustness of models")
 attack_parser.add_argument("--model", type=str, default="resnet18", help="the architecture")
@@ -66,6 +71,7 @@ attack_parser.add_argument("--dataset", type=str, default="cifar100", help="data
 attack_parser.add_argument("--lif", action="store_true", help="the lif variant of the model")
 attack_parser.add_argument("--paralif", action="store_true", help="the paralif variant of the model")
 attack_parser.add_argument("--attack", type=str, default="fgsm", help="the type of attack to perform")
+attack_parser.add_argument("--gcs", type=bool, default=False, help="indication of whether source/store models from gcs or not")
 
 results_parser = subparsers.add_parser("results", help="rendering the diagrams of the results gathered")
 results_subparser = results_parser.add_subparsers(dest="type", help="which type of results to show")
@@ -94,32 +100,40 @@ def rtrain(
     test_loader: DataLoader,
     optimizer: torch.optim.Optimizer,
     epochs: int,
+    metadata: checkpoint.Metadata,
     variant: str = "",
     device: str = "cpu",
-    metadata: checkpoint.Metadata = checkpoint.Metadata("resnet18", 0, 0, float("inf")),
+    gcs: bool = True,
 ):
     model.train()
     best_accuracy, best_loss = metadata.accuracy, metadata.loss
 
     report = f"./results/train/{dataset}-{variant}-{name}.csv"
+    report_gcs = f"results/train/{dataset}-{variant}-{name}.csv"
+
+    def write_to_csv(path, mode, data):
+        if not os.path.exists(report):
+            write_to_csv(report, 'w', ["epoch", "loss", "accuracy"])
+            write_to_csv(report, 'a', [0, best_loss, best_accuracy])
+
+        with open(path, mode, newline='') as file:
+            writer = csv.writer(file)
+            writer.writerow(data)
 
     best_loss, best_accuracy = evaluate(model, criterion, test_loader, device)
 
     if metadata.epoch == 0:
-        if not os.path.exists(report):
-            with open(report, mode='w', newline='') as file:
-                writer = csv.writer(file)
-                writer.writerow(["epoch", "loss", "accuracy"])
-                writer.writerow([0, best_loss, best_accuracy])
+        write_to_csv(report, 'a', [0, best_loss, best_accuracy])
+        if gcs:
+            upload.gcs(report, report_gcs)
         if variant == "ParaLIF":
             for _ in range(3):
                 loss, accuracy = evaluate(model, criterion, test_loader, device)
                 if accuracy >= best_accuracy:
                     best_accuracy = accuracy
-                with open(report, mode='a', newline='') as file:
-                    # NOTE: we also write duplicate rows for each epoch for ParaLIF to measure STD DEV.
-                    writer = csv.writer(file)
-                    writer.writerow([0, loss, accuracy])
+                write_to_csv(report, 'a', [0, loss, accuracy])
+                if gcs:
+                    upload.gcs(report, report_gcs)
 
     print(f"Current: {metadata.epoch}, Loss: {best_loss}, Accuracy: {best_accuracy}")
     for i in range(1, epochs + 1):
@@ -133,18 +147,15 @@ def rtrain(
             optimizer.step()
 
         if variant == "ParaLIF":
-            # NOTE: in the case of ParaLIF, a stochastic model, we want capture std of accuracy/loss instead
-            # and save based on the "average" accuracy of the model.
             num_runs = 5
             total_loss, total_accuracy = 0, 0
             for _ in range(num_runs):
                 loss, accuracy = evaluate(model, criterion, test_loader, device)
                 total_loss += loss
                 total_accuracy += accuracy
-                with open(report, mode='a', newline='') as file:
-                    # NOTE: we also write duplicate rows for each epoch for ParaLIF to measure STD DEV.
-                    writer = csv.writer(file)
-                    writer.writerow([i + metadata.epoch, loss, accuracy])
+                write_to_csv(report, 'a', [i + metadata.epoch, loss, accuracy])
+                if gcs:
+                    upload.gcs(report, report_gcs)
 
             avg_loss = total_loss / num_runs
             avg_accuracy = total_accuracy / num_runs
@@ -158,7 +169,8 @@ def rtrain(
                     checkpoint.Metadata(
                         name=name, epoch=i + metadata.epoch, accuracy=best_accuracy, loss=best_loss
                     ),
-                    variant,
+                    variant=variant,
+                    gcs=gcs,
                 )
             print(f"Epoch: {i + metadata.epoch}, Avg_Loss: {avg_loss}, Avg_Accuracy: {avg_accuracy}")
         else:
@@ -172,13 +184,14 @@ def rtrain(
                     checkpoint.Metadata(
                         name=name, epoch=i + metadata.epoch, accuracy=best_accuracy, loss=best_loss
                     ),
-                    variant,
+                    variant=variant,
+                    gcs=gcs,
                 )
             print(f"Epoch: {i + metadata.epoch}, Loss: {loss}, Accuracy: {accuracy}")
 
-            with open(report, mode='a', newline='') as file:
-                writer = csv.writer(file)
-                writer.writerow([i + metadata.epoch, loss, accuracy])
+            write_to_csv(report, 'a', [i + metadata.epoch, loss, accuracy])
+            if gcs:
+                upload.gcs(report, report_gcs)
 
 def vtrain(
     model: torch.nn.Module,
@@ -192,32 +205,40 @@ def vtrain(
     warmup_scheduler: torch.optim.lr_scheduler.LRScheduler,
     scheduler: torch.optim.lr_scheduler.LRScheduler,
     epochs: int,
+    metadata: checkpoint.Metadata,
     variant: str = "",
     device: str = "cpu",
-    metadata: checkpoint.Metadata = checkpoint.Metadata("resnet18", 0, 0, float("inf")),
+    gcs: bool = True,
 ):
     model.train()
     best_accuracy, best_loss = metadata.accuracy, metadata.loss
 
     report = f"./results/train/{dataset}-{variant}-{name}.csv"
+    report_gcs = f"results/train/{dataset}-{variant}-{name}.csv"
+
+    def write_to_csv(path, mode, data):
+        if not os.path.exists(report):
+            write_to_csv(report, 'w', ["epoch", "loss", "accuracy"])
+            write_to_csv(report, 'a', [0, best_loss, best_accuracy])
+
+        with open(path, mode, newline='') as file:
+            writer = csv.writer(file)
+            writer.writerow(data)
 
     best_loss, best_accuracy = evaluate(model, criterion, test_loader, device)
 
     if metadata.epoch == 0:
-        if not os.path.exists(report):
-            with open(report, mode='w', newline='') as file:
-                writer = csv.writer(file)
-                writer.writerow(["epoch", "loss", "accuracy"])
-                writer.writerow([0, best_loss, best_accuracy])
+        write_to_csv(report, 'a', [0, best_loss, best_accuracy])
+        if gcs:
+            upload.gcs(report, report_gcs)
         if variant == "ParaLIF":
             for _ in range(3):
                 loss, accuracy = evaluate(model, criterion, test_loader, device)
                 if accuracy >= best_accuracy:
                     best_accuracy = accuracy
-                with open(report, mode='a', newline='') as file:
-                    # NOTE: we also write duplicate rows for each epoch for ParaLIF to measure STD DEV.
-                    writer = csv.writer(file)
-                    writer.writerow([0, loss, accuracy])
+                write_to_csv(report, 'a', [0, loss, accuracy])
+                if gcs:
+                    upload.gcs(report, report_gcs)
 
     print(f"Current: {metadata.epoch}, Loss: {best_loss}, Accuracy: {best_accuracy}")
     for i in range(1, epochs + 1):
@@ -236,18 +257,15 @@ def vtrain(
                 scheduler.step()
 
         if variant == "ParaLIF":
-            # NOTE: in the case of ParaLIF, a stochastic model, we want capture std of accuracy/loss instead
-            # and save based on the "average" accuracy of the model.
             num_runs = 5
             total_loss, total_accuracy = 0, 0
             for _ in range(num_runs):
                 loss, accuracy = evaluate(model, criterion, test_loader, device)
                 total_loss += loss
                 total_accuracy += accuracy
-                with open(report, mode='a', newline='') as file:
-                    # NOTE: we also write duplicate rows for each epoch for ParaLIF to measure STD DEV.
-                    writer = csv.writer(file)
-                    writer.writerow([i + metadata.epoch, loss, accuracy])
+                write_to_csv(report, 'a', [i + metadata.epoch, loss, accuracy])
+                if gcs:
+                    upload.gcs(report, report_gcs)
 
             avg_loss = total_loss / num_runs
             avg_accuracy = total_accuracy / num_runs
@@ -261,7 +279,8 @@ def vtrain(
                     checkpoint.Metadata(
                         name=name, epoch=i + metadata.epoch, accuracy=best_accuracy, loss=best_loss
                     ),
-                    variant,
+                    variant=variant,
+                    gcs=gcs,
                 )
             print(f"Epoch: {i + metadata.epoch}, Avg_Loss: {avg_loss}, Avg_Accuracy: {avg_accuracy}")
         else:
@@ -275,13 +294,14 @@ def vtrain(
                     checkpoint.Metadata(
                         name=name, epoch=i + metadata.epoch, accuracy=best_accuracy, loss=best_loss
                     ),
-                    variant,
+                    variant=variant,
+                    gcs=gcs,
                 )
             print(f"Epoch: {i + metadata.epoch}, Loss: {loss}, Accuracy: {accuracy}")
 
-            with open(report, mode='a', newline='') as file:
-                writer = csv.writer(file)
-                writer.writerow([i + metadata.epoch, loss, accuracy])
+            write_to_csv(report, 'a', [i + metadata.epoch, loss, accuracy])
+            if gcs:
+                upload.gcs(report, report_gcs)
 
 def evaluate(
     model: torch.nn.Module,
@@ -311,14 +331,14 @@ if not args.command:
     raise ValueError("no command specified")
 elif args.command == "rtrainer":
     model, preprocess = models.resnet(args.arch, args.dataset)
-    loaded, vanilla, metadata = checkpoint.load(model, args.arch, args.dataset)
+    loaded, vanilla, metadata = checkpoint.load(model, args.arch, args.dataset, gcs=args.gcs)
 
     if args.lif or args.paralif:
         if not loaded:
             raise ValueError("must train vanilla model first... abort")
         model = convert.convert(vanilla, args.dataset, dest="LIF" if args.lif else "ParaLIF")
         # NOTE: check if we already have a converted model checkpointed ready to continue on
-        loaded, model, metadata = checkpoint.load(model, args.arch, args.dataset, variant="LIF" if args.lif else "ParaLIF")
+        loaded, model, metadata = checkpoint.load(model, args.arch, args.dataset, variant="LIF" if args.lif else "ParaLIF", gcs=args.gcs)
         print("training LIF decoder model...")
     else:
         print("training vanilla model...")
@@ -340,13 +360,14 @@ elif args.command == "rtrainer":
         test_loader,
         optimizer,
         args.epochs,
-        "LIF" if args.lif else "ParaLIF" if args.paralif else "",
-        args.device,
         metadata,
+        variant="LIF" if args.lif else "ParaLIF" if args.paralif else "",
+        device=args.device,
+        gcs=args.gcs,
     )
 elif args.command == "vtrainer":
     model, preprocess = models.vit(args.arch, args.dataset)
-    loaded, vanilla, metadata = checkpoint.load(model, args.arch, args.dataset)
+    loaded, vanilla, metadata = checkpoint.load(model, args.arch, args.dataset, gcs= args.gcs)
 
     model = freeze.freeze(model, depth=freeze.Depth.THREE)
     model = model.to(args.device)
@@ -371,15 +392,16 @@ elif args.command == "vtrainer":
         warmup_scheduler,
         lr_scheduler,
         args.epochs,
-        "",
-        args.device,
         metadata,
+        variant="",
+        device=args.device,
+        gcs=args.gcs,
     )
 elif args.command == "scratch":
     model, preprocess = models.resnet(args.model, args.dataset, pretrained=False)
     if args.lif or args.paralif:
         model = convert.convert(model, args.dataset, dest="LIF" if args.lif else "ParaLIF")
-    loaded, model, metadata = checkpoint.load(model, args.model, args.dataset, variant="LIF" if args.lif else "ParaLIF" if args.paralif else "", scratch=True)
+    loaded, model, metadata = checkpoint.load(model, args.model, args.dataset, variant="LIF" if args.lif else "ParaLIF" if args.paralif else "", scratch=True, gcs=args.gcs)
     model = model.to(args.device)
 
     train_loader, test_loader = data.loader(args.dataset, preprocess, args.batch)
@@ -396,15 +418,16 @@ elif args.command == "scratch":
         test_loader,
         optimizer,
         args.epochs,
-        "LIF" if args.lif else "ParaLIF" if args.paralif else "",
-        args.device,
         metadata,
+        variant="LIF" if args.lif else "ParaLIF" if args.paralif else "",
+        device=args.device,
+        gcs=args.gcs,
     )
 elif args.command == "test":
     model, preprocess = models.resnet(args.model, args.dataset)
     if args.lif or args.paralif:
         model = convert.convert(model, args.dataset, dest="LIF" if args.lif else "ParaLIF")
-    loaded, model, metadata = checkpoint.load(model, args.model, args.dataset, variant="LIF" if args.lif else "ParaLIF" if args.paralif else "")
+    loaded, model, metadata = checkpoint.load(model, args.model, args.dataset, variant="LIF" if args.lif else "ParaLIF" if args.paralif else "", gcs=args.gcs)
     if not loaded:
         raise ValueError(f"no trained {args.model} for {args.dataset}... abort")
 
@@ -426,7 +449,7 @@ elif args.command == "attack":
     model, preprocess = models.resnet(args.model, args.dataset)
     if args.lif or args.paralif:
         model = convert.convert(model, args.dataset, dest="LIF" if args.lif else "ParaLIF")
-    loaded, model, metadata = checkpoint.load(model, args.model, args.dataset, variant="LIF" if args.lif else "ParaLIF" if args.paralif else "")
+    loaded, model, metadata = checkpoint.load(model, args.model, args.dataset, variant="LIF" if args.lif else "ParaLIF" if args.paralif else "", gcs=args.gcs)
 
     if not loaded:
         raise ValueError(f"no trained {args.model} for {args.dataset}... abort")

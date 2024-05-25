@@ -2,3 +2,7 @@ data
 
 # thing is just a bit big
 checkpoint/**vit_b_16**
+
+**/.terraform/*
+*.tfstate
+*.tfstate.*
