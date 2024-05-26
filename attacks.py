@@ -12,7 +12,7 @@ from skimage.metrics import structural_similarity as ssim
 import copy
 import csv
 
-def sampled(loader: DataLoader, model: torch.nn.Module, device: str, sample: int = 300) -> DataLoader:
+def sampled(loader: DataLoader, model: torch.nn.Module, device: str, sample: int = 1000) -> DataLoader:
     model = model.to(device)
     model.eval()
 
@@ -148,7 +148,7 @@ def perform(
         device: str = "mps",
     ):
 
-    sampled_loader = sampled(loader, model, device, sample=33)
+    sampled_loader = sampled(loader, model, device, sample=300)
 
     classes = 100
     if dataset == "cifar10" or dataset == "fashionMNIST":
@@ -161,10 +161,19 @@ def perform(
     # NOTE: These values found via find_clip_values
     clips = (-2.1179039478302, 2.640000104904175)
 
-    cpuModel = copy.deepcopy(model)
-    cpuModel = cpuModel.to("cpu")
+    class ToDevice(torch.nn.Module):
+        def __init__(self, device):
+            super(ToDevice, self).__init__()
+            self.device = device
+
+        def forward(self, x):
+            return x.to(self.device)
+
     artIntermediaryClassifier = PyTorchClassifier(
-        model = cpuModel,
+        model = torch.nn.Sequential(
+            ToDevice(device),
+            model,
+        ),
         loss = criterion,
         optimizer = optimizer,
         input_shape= input_shape,
