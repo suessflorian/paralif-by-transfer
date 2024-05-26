@@ -19,7 +19,7 @@ class ParaLIFResNetDecoder(nn.Module):
         self.encoder.fc = nn.Identity()
 
         self.steps = 20
-        self.paralif = paralif.ParaLIF(fm, num_classes, "mps", "SB", tau_mem=0.02, tau_syn=0.02)
+        self.paralif = paralif.ParaLIF(fm, num_classes, next(model.parameters()).device, "SB", tau_mem=0.02, tau_syn=0.02)
 
     def forward(self, x):
         x = self.encoder(x)
@@ -99,6 +99,28 @@ class LIFViTDecoder(nn.Module):
         self.lif.to(device)
         return self
 
+class ParaLIFViTDecoder(nn.Module):
+    def __init__(self, model: VisionTransformer, num_classes: int):
+        super(ParaLIFViTDecoder, self).__init__()
+        self.encoder = model
+        fm = self.encoder.hidden_dim
+        self.encoder.heads = torch.nn.Identity()
+
+        self.steps = 20
+        self.paralif = paralif.ParaLIF(fm, num_classes, next(model.parameters()).device, "SB", tau_mem=0.02, tau_syn=0.02)
+
+    def forward(self, x):
+        x = self.encoder(x)
+        train = encoding.rate(min_max_norm(x), num_steps=self.steps)
+        train = torch.swapaxes(train, 0, 1)
+        x = self.paralif(train)
+        return torch.mean(x,1)
+
+    def to(self, device):
+        self.encoder.to(device)
+        self.paralif.to(device)
+        return self
+
 def convert(model: ResNet | VisionTransformer | LIFResNetDecoder | ParaLIFResNetDecoder, dataset: str, dest: str = "LIF") -> LIFResNetDecoder | ParaLIFResNetDecoder:
     if isinstance(model, ResNet):
         if dest == "LIF":
@@ -111,7 +133,7 @@ def convert(model: ResNet | VisionTransformer | LIFResNetDecoder | ParaLIFResNet
         if dest == "LIF":
             return LIFViTDecoder(model, num_classes=100 if dataset == "cifar100" else 10)
         elif dest == "ParaLIF":
-            raise NotImplementedError("ParaLIF convert not implemented for ViT")
+            return ParaLIFViTDecoder(model, num_classes=100 if dataset == "cifar100" else 10)
         else:
             raise ValueError(f"Unknown conversion destination: {dest}")
 

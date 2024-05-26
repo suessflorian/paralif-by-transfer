@@ -3,9 +3,14 @@ url = "https://pypi.org/simple"
 verify_ssl = true
 name = "pypi"
 
+[[source]]
+url = "https://download.pytorch.org/whl/cu118"
+verify_ssl = true
+name = "pytorch-cu118"
+
 [packages]
-torch = "*"
-torchvision = "*"
+torch = {version = "*", index = "pytorch-cu118"}
+torchvision = {version = "*", index = "pytorch-cu118"}
 tqdm = "*"
 tabulate = "*"
 snntorch = "*"

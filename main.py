@@ -337,7 +337,7 @@ if not args.command:
     raise ValueError("no command specified")
 elif args.command == "rtrainer":
     model, preprocess = models.resnet(args.arch, args.dataset)
-    loaded, vanilla, metadata = checkpoint.load(model, args.arch, args.dataset, gcs=args.gcs)
+    loaded, vanilla, metadata = checkpoint.load(model, args.arch, args.dataset, variant="", gcs=args.gcs)
 
     if args.lif or args.paralif:
         if not loaded:
@@ -371,7 +371,7 @@ elif args.command == "rtrainer":
     )
 elif args.command == "vtrainer":
     model, preprocess = models.vit(args.arch, args.dataset)
-    loaded, vanilla, metadata = checkpoint.load(model, args.arch, args.dataset, gcs= args.gcs)
+    loaded, vanilla, metadata = checkpoint.load(model, args.arch, args.dataset, variant="", gcs=args.gcs)
 
     if args.lif or args.paralif:
         if not loaded:

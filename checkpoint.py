@@ -25,10 +25,14 @@ def cache(model: torch.nn.Module, dataset: str, metadata: Metadata, variant: str
     if scratch:
         dataset = f"{dataset}[scratch]"
 
+    device = next(model.parameters()).device
+    # TODO: short-term to save model on CPU to ensure compatible loading between devices.
+    model.to("cpu")
     checkpoint = {
         "state_dict": model.state_dict(),
         "metadata": metadata,
     }
+    model.to(device)
     path = f"{CACHE}/{dataset}-{metadata.name}-checkpoint.pth"
     gcs_path = f"{PREFIX}/{dataset}-{metadata.name}-checkpoint.pth"
     if variant != "":
@@ -42,7 +46,7 @@ def cache(model: torch.nn.Module, dataset: str, metadata: Metadata, variant: str
 
 
 def load(model: ResNet | VisionTransformer | LIFResNetDecoder | ParaLIFResNetDecoder,
-         name: str, dataset: str, variant: str = "", scratch: bool = False, gcs: bool = False) -> Tuple[bool, ResNet | VisionTransformer | LIFResNetDecoder | ParaLIFResNetDecoder, Metadata]:
+         name: str, dataset: str, variant: str, scratch: bool = False, gcs: bool = False) -> Tuple[bool, ResNet | VisionTransformer | LIFResNetDecoder | ParaLIFResNetDecoder, Metadata]:
     if scratch:
         dataset = f"{dataset}[scratch]"
 
