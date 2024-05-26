@@ -151,7 +151,7 @@ def plot_attack(dataset: str, attack: str):
 
         plt.tight_layout()
         plt.show()
-    elif attack=="deepfool" or attack=="fgsm":
+    elif attack=="deepfool" or attack=="fgsm" or attack=="square":
         _, (ax1, ax2) = plt.subplots(1, 2, figsize=(18, 8))
         for csv_file in csv_files:
             file_path = os.path.join(results_dir, csv_file)
@@ -160,6 +160,8 @@ def plot_attack(dataset: str, attack: str):
             if attack == "deepfool":
                 data["success_rate"] = (1 - data["accuracy"])
             if attack == "fgsm":
+                data["success_rate"] = (100 - data["accuracy"]) / 100
+            if attack == "square":
                 data["success_rate"] = (100 - data["accuracy"]) / 100
 
             base_name = os.path.splitext(csv_file)[0]
