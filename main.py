@@ -136,16 +136,24 @@ def rtrain(
                 if gcs:
                     upload.gcs(report, report_gcs)
 
-    print(f"Current: {metadata.epoch}, Loss: {best_loss}, Accuracy: {best_accuracy}")
     for i in range(1, epochs + 1):
-        for images, labels in tqdm(train_loader, desc="Training", unit="batch"):
-            images, labels = images.to(device), labels.to(device)
-            outputs = model(images)
-            loss = criterion(outputs, labels)
+        correct, total = 0, 0
+        with tqdm(train_loader, unit="batch") as progress:
+            for images, labels in progress:
+                progress.set_description(f"Epoch {i + metadata.epoch}")
+                images, labels = images.to(device), labels.to(device)
+                outputs = model(images)
+                loss = criterion(outputs, labels)
 
-            optimizer.zero_grad()
-            loss.backward()
-            optimizer.step()
+                _, predicted = torch.max(outputs.data, 1)
+                total += labels.size(0)
+                correct += (predicted == labels).sum().item()
+
+                optimizer.zero_grad()
+                loss.backward()
+                optimizer.step()
+
+                progress.set_postfix(train_accuracy=f"{(correct/total):.2f}")
 
         if variant == "ParaLIF":
             num_runs = 5
