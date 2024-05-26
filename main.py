@@ -35,13 +35,13 @@ rtrainer_parser.add_argument("--gcs", type=bool, default=False, help="indication
 vtrainer_parser = subparsers.add_parser("vtrainer", help="training vision transformer models")
 vtrainer_parser.add_argument("--epochs", type=int, default=10, help="number of epochs to train for")
 vtrainer_parser.add_argument("--warmup", type=int, default=2, help="number of warmup epochs")
-vtrainer_parser.add_argument("--warmup-decay", type=int, default=0.033, help="warmup decay factor")
-vtrainer_parser.add_argument("--weight-decay", type=int, default=0.3, help="warmup decay factor")
 vtrainer_parser.add_argument("--batch", type=int, default=128, help="input batch size for training")
 vtrainer_parser.add_argument("--dataset", type=str, default="cifar100", help="dataset to train for")
 vtrainer_parser.add_argument("--lr", type=float, default=0.001, help="learning rate")
 vtrainer_parser.add_argument("--arch", type=str, default="vit_b_16", help="the architecture")
 vtrainer_parser.add_argument("--device", type=str, default="mps", help="device to lay tensor work over")
+vtrainer_parser.add_argument("--lif", action="store_true", help="if the model should be converted a lif decoder variant")
+vtrainer_parser.add_argument("--paralif", action="store_true", help="if the model should be converted to a paralif decoder variant")
 vtrainer_parser.add_argument("--gcs", type=bool, default=False, help="indication of whether source/store models from gcs or not")
 
 test_parser = subparsers.add_parser("test", help="testing models")
@@ -181,7 +181,6 @@ def rtrain(
                     variant=variant,
                     gcs=gcs,
                 )
-            print(f"Epoch: {i + metadata.epoch}, Avg_Loss: {avg_loss}, Avg_Accuracy: {avg_accuracy}")
         else:
             loss, accuracy = evaluate(model, criterion, test_loader, device)
             if accuracy >= best_accuracy:
@@ -196,8 +195,6 @@ def rtrain(
                     variant=variant,
                     gcs=gcs,
                 )
-            print(f"Epoch: {i + metadata.epoch}, Loss: {loss}, Accuracy: {accuracy}")
-
             write_to_csv(report, [i + metadata.epoch, loss, accuracy])
             if gcs:
                 upload.gcs(report, report_gcs)
@@ -291,7 +288,6 @@ def vtrain(
                     variant=variant,
                     gcs=gcs,
                 )
-            print(f"Epoch: {i + metadata.epoch}, Avg_Loss: {avg_loss}, Avg_Accuracy: {avg_accuracy}")
         else:
             loss, accuracy = evaluate(model, criterion, test_loader, device)
             if accuracy >= best_accuracy:
@@ -306,7 +302,6 @@ def vtrain(
                     variant=variant,
                     gcs=gcs,
                 )
-            print(f"Epoch: {i + metadata.epoch}, Loss: {loss}, Accuracy: {accuracy}")
 
             write_to_csv(report, [i + metadata.epoch, loss, accuracy])
             if gcs:
@@ -350,9 +345,7 @@ elif args.command == "rtrainer":
         model = convert.convert(vanilla, args.dataset, dest="LIF" if args.lif else "ParaLIF")
         # NOTE: check if we already have a converted model checkpointed ready to continue on
         loaded, model, metadata = checkpoint.load(model, args.arch, args.dataset, variant="LIF" if args.lif else "ParaLIF", gcs=args.gcs)
-        print("training LIF decoder model...")
     else:
-        print("training vanilla model...")
         model = vanilla
 
     model = freeze.freeze(model, depth=freeze.Depth.THREE)
@@ -380,6 +373,15 @@ elif args.command == "vtrainer":
     model, preprocess = models.vit(args.arch, args.dataset)
     loaded, vanilla, metadata = checkpoint.load(model, args.arch, args.dataset, gcs= args.gcs)
 
+    if args.lif or args.paralif:
+        if not loaded:
+            raise ValueError("must train vanilla model first... abort")
+        model = convert.convert(vanilla, args.dataset, dest="LIF" if args.lif else "ParaLIF")
+        # NOTE: check if we already have a converted model checkpointed ready to continue on
+        loaded, model, metadata = checkpoint.load(model, args.arch, args.dataset, variant="LIF" if args.lif else "ParaLIF", gcs=args.gcs)
+    else:
+        model = vanilla
+
     model = freeze.freeze(model, depth=freeze.Depth.THREE)
     model = model.to(args.device)
 
@@ -397,7 +399,7 @@ elif args.command == "vtrainer":
         optimizer,
         args.epochs,
         metadata,
-        variant="",
+        variant="LIF" if args.lif else "ParaLIF" if args.paralif else "",
         device=args.device,
         gcs=args.gcs,
     )
@@ -447,8 +449,6 @@ elif args.command == "test":
         test_loader,
         args.device,
     )
-
-    print(f"Epoch: {metadata.epoch}, Loss: {loss}, Accuracy: {accuracy}")
 elif args.command == "attack":
     model, preprocess = models.resnet(args.model, args.dataset)
     if args.lif or args.paralif:

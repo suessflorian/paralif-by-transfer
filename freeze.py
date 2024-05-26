@@ -1,7 +1,7 @@
 from torchvision.models import ResNet, VisionTransformer
 from enum import Enum, auto
 from tabulate import tabulate
-from convert import LIFResNetDecoder, ParaLIFResNetDecoder
+from convert import LIFResNetDecoder, LIFViTDecoder, ParaLIFResNetDecoder
 
 class Depth(Enum):
     NONE = auto()
@@ -15,6 +15,9 @@ def freeze(model: ResNet | VisionTransformer | LIFResNetDecoder | ParaLIFResNetD
         return resnet(model, depth)
     elif isinstance(model, LIFResNetDecoder) or isinstance(model, ParaLIFResNetDecoder):
         model.encoder = resnet(model.encoder, depth=Depth.THREE)
+        return model
+    elif isinstance(model, LIFViTDecoder):
+        model.encoder = vit(model.encoder, depth=Depth.THREE)
         return model
     elif isinstance(model, VisionTransformer):
         return vit(model, depth)
