@@ -40,11 +40,16 @@ resource "google_compute_instance" "florians-deeplearning" {
   deletion_protection = false
   enable_display      = false
 
+  guest_accelerator {
+    count = 1
+    type  = "projects/graphic-armor-339522/zones/us-central1-a/acceleratorTypes/nvidia-tesla-v100"
+  }
+
   labels = {
     goog-ec-src = "vm_add-tf"
   }
 
-  machine_type = "e2-medium"
+  machine_type = "n1-highmem-8"
   name         = "florians-deeplearning"
 
   network_interface {
@@ -59,7 +64,7 @@ resource "google_compute_instance" "florians-deeplearning" {
 
   scheduling {
     automatic_restart   = true
-    on_host_maintenance = "MIGRATE"
+    on_host_maintenance = "TERMINATE"
     preemptible         = false
     provisioning_model  = "STANDARD"
   }

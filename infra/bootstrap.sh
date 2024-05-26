@@ -1,3 +1,5 @@
+#!/bin/bash
+
 sudo apt update
 sudo apt install -y build-essential zlib1g-dev libncurses5-dev libgdbm-dev libnss3-dev libssl-dev libreadline-dev libffi-dev libsqlite3-dev wget libbz2-dev
 
@@ -12,3 +14,13 @@ make -j $(nproc)
 sudo make altinstall
 
 python3.12 --version
+
+python3.12 -m ensurepip --upgrade
+python3.12 -m pip install --upgrade pip
+
+python3.12 -m pip install pipenv
+
+echo 'export PATH=$PATH:~/.local/bin' >> ~/.bashrc
+source ~/.bashrc
+
+pipenv --version
