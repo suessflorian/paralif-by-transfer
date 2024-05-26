@@ -1,6 +1,8 @@
 import os
 import pandas as pd
 import matplotlib.pyplot as plt
+import numpy as np
+from matplotlib.ticker import FuncFormatter
 
 def plot_training(dataset: str):
     results_dir = "./results/train"
@@ -101,6 +103,12 @@ def transfer_learning(dataset: str):
     plt.subplots_adjust(hspace=0.1)
     plt.show()
 
+def log_format(x, pos):
+    if x == 0:
+        return "0"
+    else:
+        return f'$10^{{{int(np.log10(x))}}}$'
+
 def plot_attack(dataset: str, attack: str):
     results_dir = "./results"
     csv_files = [f for f in os.listdir(results_dir) if f.startswith(dataset + "-") and f.endswith(f"{attack}.csv")]
@@ -117,7 +125,6 @@ def plot_attack(dataset: str, attack: str):
             _, variant, model, _ = base_name.split("-", 3)
 
             label = f"{model} ({variant})" if variant != "" else model
-            print(label)
             if variant == "ParaLIF":
                 grouped_data = data.groupby('max_iterations')['success_rate'].agg(['min', 'max'])
                 if "resnet18" in model:
@@ -159,7 +166,6 @@ def plot_attack(dataset: str, attack: str):
             _, variant, model, _ = base_name.split("-", 3)
 
             label = f"{model} ({variant})" if variant != "" else model
-            print(label)
             if variant == "ParaLIF":
                 grouped_data = data.groupby('epsilon')['success_rate'].agg(['min', 'max'])
                 if "resnet18" in model:
@@ -173,14 +179,18 @@ def plot_attack(dataset: str, attack: str):
                     ax2.plot(data['epsilon'], data['success_rate'], label=label)
 
         ax1.set_title(f"Attack success rate: {dataset} - ResNet-18 Models")
-        ax1.set_xlabel('epsilon')
-        ax1.set_ylabel('success_rate')
+        ax1.set_xlabel(r'$\epsilon$')
+        ax1.set_xscale('log')
+        ax1.xaxis.set_major_formatter(FuncFormatter(log_format))
+        ax1.set_ylabel('Success Rate')
         ax1.legend()
         ax1.grid(True)
 
         ax2.set_title(f"Attack success rate: {dataset} - ResNet-50 Models")
-        ax2.set_xlabel('epsilon')
-        ax2.set_ylabel('success_rate')
+        ax2.set_xlabel(r'$\epsilon$')
+        ax2.set_xscale('log')
+        ax2.xaxis.set_major_formatter(FuncFormatter(log_format))
+        ax2.set_ylabel('Success Rate')
         ax2.legend()
         ax2.grid(True)
 
