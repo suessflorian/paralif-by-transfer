@@ -39,7 +39,7 @@ vtrainer_parser.add_argument("--warmup-decay", type=int, default=0.033, help="wa
 vtrainer_parser.add_argument("--weight-decay", type=int, default=0.3, help="warmup decay factor")
 vtrainer_parser.add_argument("--batch", type=int, default=128, help="input batch size for training")
 vtrainer_parser.add_argument("--dataset", type=str, default="cifar100", help="dataset to train for")
-vtrainer_parser.add_argument("--lr", type=float, default=0.003, help="learning rate")
+vtrainer_parser.add_argument("--lr", type=float, default=0.001, help="learning rate")
 vtrainer_parser.add_argument("--arch", type=str, default="vit_b_16", help="the architecture")
 vtrainer_parser.add_argument("--device", type=str, default="mps", help="device to lay tensor work over")
 vtrainer_parser.add_argument("--gcs", type=bool, default=False, help="indication of whether source/store models from gcs or not")
@@ -111,19 +111,20 @@ def rtrain(
     report = f"./results/train/{dataset}-{variant}-{name}.csv"
     report_gcs = f"results/train/{dataset}-{variant}-{name}.csv"
 
-    def write_to_csv(path, mode, data):
-        if not os.path.exists(report):
-            write_to_csv(report, 'w', ["epoch", "loss", "accuracy"])
-            write_to_csv(report, 'a', [0, best_loss, best_accuracy])
+    def write_to_csv(path, data):
+        if not os.path.exists(path):
+            with open(path, 'w', newline='') as file:
+                writer = csv.writer(file)
+                writer.writerow(["epoch", "loss", "accuracy"])
 
-        with open(path, mode, newline='') as file:
+        with open(path, 'a', newline='') as file:
             writer = csv.writer(file)
             writer.writerow(data)
 
     best_loss, best_accuracy = evaluate(model, criterion, test_loader, device)
 
     if metadata.epoch == 0:
-        write_to_csv(report, 'a', [0, best_loss, best_accuracy])
+        write_to_csv(report, [0, best_loss, best_accuracy])
         if gcs:
             upload.gcs(report, report_gcs)
         if variant == "ParaLIF":
@@ -131,7 +132,7 @@ def rtrain(
                 loss, accuracy = evaluate(model, criterion, test_loader, device)
                 if accuracy >= best_accuracy:
                     best_accuracy = accuracy
-                write_to_csv(report, 'a', [0, loss, accuracy])
+                write_to_csv(report, [0, loss, accuracy])
                 if gcs:
                     upload.gcs(report, report_gcs)
 
@@ -153,7 +154,7 @@ def rtrain(
                 loss, accuracy = evaluate(model, criterion, test_loader, device)
                 total_loss += loss
                 total_accuracy += accuracy
-                write_to_csv(report, 'a', [i + metadata.epoch, loss, accuracy])
+                write_to_csv(report, [i + metadata.epoch, loss, accuracy])
                 if gcs:
                     upload.gcs(report, report_gcs)
 
@@ -189,7 +190,7 @@ def rtrain(
                 )
             print(f"Epoch: {i + metadata.epoch}, Loss: {loss}, Accuracy: {accuracy}")
 
-            write_to_csv(report, 'a', [i + metadata.epoch, loss, accuracy])
+            write_to_csv(report, [i + metadata.epoch, loss, accuracy])
             if gcs:
                 upload.gcs(report, report_gcs)
 
@@ -201,9 +202,6 @@ def vtrain(
     train_loader: DataLoader,
     test_loader: DataLoader,
     optimizer: torch.optim.Optimizer,
-    warmup: int,
-    warmup_scheduler: torch.optim.lr_scheduler.LRScheduler,
-    scheduler: torch.optim.lr_scheduler.LRScheduler,
     epochs: int,
     metadata: checkpoint.Metadata,
     variant: str = "",
@@ -216,19 +214,20 @@ def vtrain(
     report = f"./results/train/{dataset}-{variant}-{name}.csv"
     report_gcs = f"results/train/{dataset}-{variant}-{name}.csv"
 
-    def write_to_csv(path, mode, data):
-        if not os.path.exists(report):
-            write_to_csv(report, 'w', ["epoch", "loss", "accuracy"])
-            write_to_csv(report, 'a', [0, best_loss, best_accuracy])
+    def write_to_csv(path, data):
+        if not os.path.exists(path):
+            with open(path, 'w', newline='') as file:
+                writer = csv.writer(file)
+                writer.writerow(["epoch", "loss", "accuracy"])
 
-        with open(path, mode, newline='') as file:
+        with open(path, 'a', newline='') as file:
             writer = csv.writer(file)
             writer.writerow(data)
 
     best_loss, best_accuracy = evaluate(model, criterion, test_loader, device)
 
     if metadata.epoch == 0:
-        write_to_csv(report, 'a', [0, best_loss, best_accuracy])
+        write_to_csv(report, [0, best_loss, best_accuracy])
         if gcs:
             upload.gcs(report, report_gcs)
         if variant == "ParaLIF":
@@ -236,25 +235,27 @@ def vtrain(
                 loss, accuracy = evaluate(model, criterion, test_loader, device)
                 if accuracy >= best_accuracy:
                     best_accuracy = accuracy
-                write_to_csv(report, 'a', [0, loss, accuracy])
+                write_to_csv(report, [0, loss, accuracy])
                 if gcs:
                     upload.gcs(report, report_gcs)
 
-    print(f"Current: {metadata.epoch}, Loss: {best_loss}, Accuracy: {best_accuracy}")
     for i in range(1, epochs + 1):
-        for images, labels in tqdm(train_loader, desc="Training", unit="batch"):
-            images, labels = images.to(device), labels.to(device)
-            outputs = model(images)
-            loss = criterion(outputs, labels)
+        correct, total = 0, 0
+        with tqdm(train_loader, unit="batch") as progress:
+            for images, labels in progress:
+                progress.set_description(f"Epoch {i + metadata.epoch}")
+                images, labels = images.to(device), labels.to(device)
+                outputs = model(images)
+                loss = criterion(outputs, labels)
 
-            optimizer.zero_grad()
-            loss.backward()
-            optimizer.step()
+                _, predicted = torch.max(outputs.data, 1)
+                total += labels.size(0)
+                correct += (predicted == labels).sum().item()
 
-            if i <= warmup:
-                warmup_scheduler.step()
-            else:
-                scheduler.step()
+                optimizer.zero_grad()
+                loss.backward()
+                optimizer.step()
+                progress.set_postfix(train_accuracy=f"{(correct/total):.2f}")
 
         if variant == "ParaLIF":
             num_runs = 5
@@ -263,7 +264,7 @@ def vtrain(
                 loss, accuracy = evaluate(model, criterion, test_loader, device)
                 total_loss += loss
                 total_accuracy += accuracy
-                write_to_csv(report, 'a', [i + metadata.epoch, loss, accuracy])
+                write_to_csv(report, [i + metadata.epoch, loss, accuracy])
                 if gcs:
                     upload.gcs(report, report_gcs)
 
@@ -299,7 +300,7 @@ def vtrain(
                 )
             print(f"Epoch: {i + metadata.epoch}, Loss: {loss}, Accuracy: {accuracy}")
 
-            write_to_csv(report, 'a', [i + metadata.epoch, loss, accuracy])
+            write_to_csv(report, [i + metadata.epoch, loss, accuracy])
             if gcs:
                 upload.gcs(report, report_gcs)
 
@@ -312,14 +313,16 @@ def evaluate(
     model.eval()
     total_loss, correct, total = 0, 0, 0
     with torch.no_grad():
-        for images, labels in tqdm(data_loader, desc="Evaluation", unit="batch"):
-            images, labels = images.to(device), labels.to(device)
-            outputs = model(images)
-            loss = criterion(outputs, labels)
-            total_loss += loss.item()
-            _, predicted = outputs.max(1)
-            total += labels.size(0)
-            correct += predicted.eq(labels).sum().item()
+        with tqdm(data_loader, desc="Evaluation", unit="batch") as progress:
+            for images, labels in progress:
+                images, labels = images.to(device), labels.to(device)
+                outputs = model(images)
+                loss = criterion(outputs, labels)
+                total_loss += loss.item()
+                _, predicted = outputs.max(1)
+                total += labels.size(0)
+                correct += predicted.eq(labels).sum().item()
+                progress.set_postfix(test_accuracy=(correct/total))
 
     average_loss = total_loss / len(data_loader)
     accuracy = correct / total
@@ -372,12 +375,8 @@ elif args.command == "vtrainer":
     model = freeze.freeze(model, depth=freeze.Depth.THREE)
     model = model.to(args.device)
 
-    # NOTE: we mostly defer the finding of the correct training hyper parameters for ViT used on ImageNET
-    # https://github.com/pytorch/vision/tree/main/references/classification#vit_b_16
     criterion = torch.nn.CrossEntropyLoss()
-    optimizer = torch.optim.AdamW(model.parameters(), lr=args.lr, weight_decay=args.weight_decay)
-    warmup_scheduler = torch.optim.lr_scheduler.LambdaLR(optimizer, lr_lambda=lambda epoch: args.warmup_decay + (1 - args.warmup_decay) * min(1.0, args.warmup / args.warmup))
-    lr_scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(optimizer, T_max=args.epochs - args.warmup)
+    optimizer = torch.optim.SGD(model.parameters(), lr=args.lr, momentum=0.9, weight_decay=1e-4)
     train_loader, test_loader = data.loader(args.dataset, preprocess, args.batch)
 
     vtrain(
@@ -388,9 +387,6 @@ elif args.command == "vtrainer":
         train_loader,
         test_loader,
         optimizer,
-        args.warmup,
-        warmup_scheduler,
-        lr_scheduler,
         args.epochs,
         metadata,
         variant="",

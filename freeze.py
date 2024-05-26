@@ -25,11 +25,15 @@ def vit(model: VisionTransformer, depth: Depth = Depth.ALL) -> VisionTransformer
     layers_to_freeze = {
         Depth.NONE: [],
         Depth.ONE: [
+            "conv_proj",
+            "encoder.pos_embedding",
             "encoder.layers.encoder_layer_0.",
             "encoder.layers.encoder_layer_1.",
             "encoder.layers.encoder_layer_2.",
         ],
         Depth.TWO: [
+            "conv_proj",
+            "encoder.pos_embedding",
             "encoder.layers.encoder_layer_0.",
             "encoder.layers.encoder_layer_1.",
             "encoder.layers.encoder_layer_2.",
@@ -38,6 +42,8 @@ def vit(model: VisionTransformer, depth: Depth = Depth.ALL) -> VisionTransformer
             "encoder.layers.encoder_layer_5.",
         ],
         Depth.THREE: [
+            "conv_proj",
+            "encoder.pos_embedding",
             "encoder.layers.encoder_layer_0.",
             "encoder.layers.encoder_layer_1.",
             "encoder.layers.encoder_layer_2.",
