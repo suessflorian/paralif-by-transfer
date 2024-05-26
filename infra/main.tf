@@ -28,8 +28,8 @@ resource "google_compute_instance" "florians-deeplearning" {
     device_name = "florians-deeplearning"
 
     initialize_params {
-      image = "projects/debian-cloud/global/images/debian-12-bookworm-v20240515"
-      size  = 10
+      image = "projects/ml-images/global/images/c0-deeplearning-common-gpu-v20240128-debian-11-py310"
+      size  = 50
       type  = "pd-balanced"
     }
 
