@@ -1,5 +1,5 @@
 # Spiking ResNet/ViT Architectures/Variants Re: Advaserial Robustness
-We want to know how the robustness characteristics of LIF/ParaLIF based neurons scale. This study looks at utility of adopting ParaLIF/LIF for the decoder stages of a ResNet and ViT.
+We want to know how robustness characteristics of LIF/ParaLIF based networks scale. This study looks at utility of adopting ParaLIF/LIF for the decoder stages of a ResNet and ViT models.
 We heavily employ transfer learning techniques alongsie an ANN-SNN conversion tactic to produce higher performing hybrid ANN/SNN models.
 
 ## Descriptions
