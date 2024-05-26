@@ -65,7 +65,7 @@ scratch_parser.add_argument("--paralif", action="store_true", help="if the model
 scratch_parser.add_argument("--gcs", type=bool, default=False, help="indication of whether source/store models from gcs or not")
 
 attack_parser = subparsers.add_parser("attack", help="testing robustness of models")
-attack_parser.add_argument("--model", type=str, default="resnet18", help="the architecture")
+attack_parser.add_argument("--arch", type=str, default="resnet18", help="the architecture")
 attack_parser.add_argument("--device", type=str, default="mps", help="device to lay tensor work over")
 attack_parser.add_argument("--dataset", type=str, default="cifar100", help="dataset to use for attacking")
 attack_parser.add_argument("--lif", action="store_true", help="the lif variant of the model")
@@ -450,13 +450,13 @@ elif args.command == "test":
         args.device,
     )
 elif args.command == "attack":
-    model, preprocess = models.resnet(args.model, args.dataset)
+    model, preprocess = models.resnet(args.arch, args.dataset)
     if args.lif or args.paralif:
         model = convert.convert(model, args.dataset, dest="LIF" if args.lif else "ParaLIF")
-    loaded, model, metadata = checkpoint.load(model, args.model, args.dataset, variant="LIF" if args.lif else "ParaLIF" if args.paralif else "", gcs=args.gcs)
+    loaded, model, metadata = checkpoint.load(model, args.arch, args.dataset, variant="LIF" if args.lif else "ParaLIF" if args.paralif else "", gcs=args.gcs)
 
     if not loaded:
-        raise ValueError(f"no trained {args.model} for {args.dataset}... abort")
+        raise ValueError(f"no trained {args.arch} for {args.dataset}... abort")
 
     criterion = torch.nn.CrossEntropyLoss()
     optimizer = torch.optim.SGD(model.parameters())
@@ -464,7 +464,7 @@ elif args.command == "attack":
 
     model = model.to(device=args.device)
     attacks.perform(
-        model, args.model, "LIF" if args.lif else "ParaLIF" if args.paralif else "",
+        model, args.arch, "LIF" if args.lif else "ParaLIF" if args.paralif else "",
         criterion,
         optimizer,
         test_loader,
