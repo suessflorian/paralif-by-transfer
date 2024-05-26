@@ -148,7 +148,7 @@ def perform(
         device: str = "mps",
     ):
 
-    sampled_loader = sampled(loader, model, device, sample=100)
+    sampled_loader = sampled(loader, model, device, sample=33)
 
     classes = 100
     if dataset == "cifar10" or dataset == "fashionMNIST":
@@ -158,7 +158,8 @@ def perform(
     input_shape = images.shape[1:]
 
 
-    clips = find_clip_values(loader)
+    # NOTE: These values found via find_clip_values
+    clips = (-2.1179039478302, 2.640000104904175)
 
     cpuModel = copy.deepcopy(model)
     cpuModel = cpuModel.to("cpu")
@@ -280,6 +281,47 @@ def perform(
                 results.append([iterations, accuracy, perturbed_ssim])
 
         persist(name, variant, dataset, "square@0.1", header=["max_iterations", "accuracy", "ssim"], results=results)
+    elif attack == "square":
+        for epsilon in [0.004, 0.005, 0.006, 0.007, 0.01, 0.02, 0.03, 0.5, 1]:
+            method = SquareAttack(estimator=artIntermediaryClassifier, eps=epsilon, verbose=False)
+            if variant == "ParaLIF":
+                num_steps = 5
+                for _ in range(num_steps):
+                    correct, total = 0, 0
+                    ssim_sample = []
+                    correct, total = 0, 0
+                    ssim_sample = []
+                    with tqdm(sampled_loader, unit="batch") as progress:
+                        for images, labels in progress:
+                            progress.set_description(f"square(epsilon: {epsilon})")
+                            adv = method.generate(x=images.cpu().numpy())
+                            adv = torch.tensor(adv).to(device)
+                            outputs = model(adv)
+                            correct += (torch.argmax(outputs, dim=1) == labels).sum().item()
+                            total += labels.size(0)
+                            ssim_sample.append(firstSSIM(images, adv))
+                            progress.set_postfix(success_rate=1-correct/total)
+                        accuracy = 100 * correct / total
+                        perturbed_ssim = np.mean(ssim_sample)
+                        results.append([epsilon, accuracy, perturbed_ssim])
+            else:
+                correct, total = 0, 0
+                ssim_sample = []
+                with tqdm(sampled_loader, unit="batch") as progress:
+                    for images, labels in progress:
+                        progress.set_description(f"square(epsilon: {epsilon})")
+                        adv = method.generate(x=images.cpu().numpy())
+                        adv = torch.tensor(adv).to(device)
+                        outputs = model(adv)
+                        correct += (torch.argmax(outputs, dim=1) == labels).sum().item()
+                        total += labels.size(0)
+                        ssim_sample.append(firstSSIM(images, adv))
+                        progress.set_postfix(success_rate=1-correct/total)
+                    accuracy = 100 * correct / total
+                    perturbed_ssim = np.mean(ssim_sample)
+                    results.append([epsilon, accuracy, perturbed_ssim])
+
+        persist(name, variant, dataset, "square", header=["epsilon", "accuracy", "ssim"], results=results)
     else:
         raise ValueError(f"Unknown attack: {attack}")
 
