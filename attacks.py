@@ -148,7 +148,7 @@ def perform(
         device: str = "mps",
     ):
 
-    sampled_loader = sampled(loader, model, device, sample=300)
+    sampled_loader = sampled(loader, model, device, sample=100)
 
     classes = 100
     if dataset == "cifar10" or dataset == "fashionMNIST":
