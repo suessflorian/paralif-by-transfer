@@ -3,7 +3,7 @@
 We're playing around with some GPU compute resource in GCP. This comes specifically for training larger models such as the ViT variants on the same Cifar-100 dataset, but hopefully paves a way for ImageNet. We've only just started looking "what is possible" from the 26th May...
 
 ## Benchmarking
-Training ViT B16's, tuned for CIFAR-100. Various "batch sizes", optimal found automatically with step of 8.
+Training ViT B16's (weightless), re-structured for CIFAR-100. Various "batch sizes", optimal found automatically with step of 8.
 
 `M1 Max (10 core CPU, 32 core GPU)` (64GB unified mem).
 ```
