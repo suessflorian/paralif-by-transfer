@@ -63,10 +63,9 @@ resource "google_compute_instance" "florians-deeplearning" {
   }
 
   scheduling {
-    automatic_restart   = true
+    preemptible         = true
+    automatic_restart   = false
     on_host_maintenance = "TERMINATE"
-    preemptible         = false
-    provisioning_model  = "STANDARD"
   }
 
   service_account {
