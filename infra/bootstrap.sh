@@ -6,4 +6,5 @@ python -m ensurepip --upgrade
 python -m pip install --upgrade pip
 python -m pip install pipenv
 
-pipenv install --deploy
+pipenv requirements > requirements.txt
+pip install -r requirements.txt

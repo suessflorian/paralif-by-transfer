@@ -10,6 +10,7 @@ import upload
 import argparse
 import os
 import csv
+import benchmark
 from typing import Tuple, Callable
 from torch.utils.data import DataLoader
 from tqdm import tqdm
@@ -34,7 +35,6 @@ rtrainer_parser.add_argument("--gcs", type=bool, default=False, help="indication
 # NOTE: vision transformer trainer
 vtrainer_parser = subparsers.add_parser("vtrainer", help="training vision transformer models")
 vtrainer_parser.add_argument("--epochs", type=int, default=10, help="number of epochs to train for")
-vtrainer_parser.add_argument("--warmup", type=int, default=2, help="number of warmup epochs")
 vtrainer_parser.add_argument("--batch", type=int, default=128, help="input batch size for training")
 vtrainer_parser.add_argument("--dataset", type=str, default="cifar100", help="dataset to train for")
 vtrainer_parser.add_argument("--lr", type=float, default=0.001, help="learning rate")
@@ -43,6 +43,10 @@ vtrainer_parser.add_argument("--device", type=str, default="mps", help="device t
 vtrainer_parser.add_argument("--lif", action="store_true", help="if the model should be converted a lif decoder variant")
 vtrainer_parser.add_argument("--paralif", action="store_true", help="if the model should be converted to a paralif decoder variant")
 vtrainer_parser.add_argument("--gcs", type=bool, default=False, help="indication of whether source/store models from gcs or not")
+
+benchmark_parser = subparsers.add_parser("benchmark", help="for benchmarking local resources")
+benchmark_parser.add_argument("--batch", type=int, default=128, help="input batch size for training")
+benchmark_parser.add_argument("--device", type=str, default="mps", help="device to lay tensor work over")
 
 test_parser = subparsers.add_parser("test", help="testing models")
 test_parser.add_argument("--model", type=str, default="resnet18", help="the architecture")
@@ -88,7 +92,7 @@ training_results_parser.add_argument("--dataset", type=str, default="cifar100", 
 
 args = parser.parse_args()
 
-if args.command != "results" and args.command != "vtrainer" and (args.lif and args.paralif):
+if args.command not in ("results", "benchmark")  and (args.lif and args.paralif):
     raise ValueError("cannot convert to both LIF and ParaLIF... abort")
 
 def rtrain(
@@ -103,7 +107,7 @@ def rtrain(
     metadata: checkpoint.Metadata,
     variant: str = "",
     device: str = "cpu",
-    gcs: bool = True,
+    gcs: bool = False,
 ):
     model.train()
     best_accuracy, best_loss = metadata.accuracy, metadata.loss
@@ -211,7 +215,7 @@ def vtrain(
     metadata: checkpoint.Metadata,
     variant: str = "",
     device: str = "cpu",
-    gcs: bool = True,
+    gcs: bool = False,
 ):
     model.train()
     best_accuracy, best_loss = metadata.accuracy, metadata.loss
@@ -482,5 +486,22 @@ elif args.command == "results":
     else:
         raise ValueError("invalid results type")
 
+elif args.command == "benchmark":
+    arch, dataset = "vit_b_16", "cifar100"
+
+    model, preprocess = models.vit(arch, dataset, pretrained=False)
+    train_loader, test_loader = data.loader(dataset, preprocess, args.batch)
+    criterion = torch.nn.CrossEntropyLoss()
+    optimizer = torch.optim.SGD(model.parameters(), lr=0.001, momentum=0.9, weight_decay=1e-4)
+
+    benchmark.benchmark(
+        model,
+        criterion,
+        train_loader,
+        test_loader,
+        optimizer,
+        1,
+        args.device,
+    )
 else:
     raise ValueError("invalid command")
