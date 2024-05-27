@@ -3,9 +3,14 @@ url = "https://pypi.org/simple"
 verify_ssl = true
 name = "pypi"
 
+[[source]]
+name = "pytorch-cu121"
+url = "https://download.pytorch.org/whl/cu121"
+verify_ssl = true
+
 [packages]
-torch = "*"
-torchvision = "*"
+torch = "==2.2.2"
+torchvision = "==0.17.2"
 tqdm = "*"
 tabulate = "*"
 snntorch = "*"
@@ -18,4 +23,4 @@ brokenaxes = "*"
 google-cloud-storage = "*"
 
 [requires]
-python_version = "3.12"
+python_version = "3.10"
