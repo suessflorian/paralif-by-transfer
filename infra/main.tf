@@ -29,7 +29,7 @@ resource "google_compute_instance" "florians-deeplearning" {
 
     initialize_params {
       image = "projects/ml-images/global/images/c2-deeplearning-pytorch-2-2-cu121-v20240514-debian-11-py310"
-      size  = 50
+      size  = 10
       type  = "pd-ssd"
     }
 
@@ -42,14 +42,14 @@ resource "google_compute_instance" "florians-deeplearning" {
 
   guest_accelerator {
     count = 1
-    type  = "projects/graphic-armor-339522/zones/asia-northeast1-a/acceleratorTypes/nvidia-tesla-t4"
+    type  = "projects/graphic-armor-339522/zones/asia-southeast1-a/acceleratorTypes/nvidia-tesla-t4"
   }
 
   labels = {
     goog-ec-src = "vm_add-tf"
   }
 
-  machine_type = "n1-highmem-8"
+  machine_type = "n1-standard-2"
   name         = "florians-deeplearning"
 
   network_interface {
@@ -59,7 +59,7 @@ resource "google_compute_instance" "florians-deeplearning" {
 
     queue_count = 0
     stack_type  = "IPV4_ONLY"
-    subnetwork  = "projects/graphic-armor-339522/regions/asia-northeast1/subnetworks/default"
+    subnetwork  = "projects/graphic-armor-339522/regions/asia-southeast1/subnetworks/default"
   }
 
   scheduling {
@@ -79,5 +79,5 @@ resource "google_compute_instance" "florians-deeplearning" {
     enable_vtpm                 = true
   }
 
-  zone = "asia-northeast1-a"
+  zone = "asia-southeast1-a"
 }

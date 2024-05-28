@@ -14,7 +14,7 @@ Benchmark: 100%|█████████████████████�
 Evaluation: 100%|██████████████████████████████████| 79/79 [01:27<00:00,  1.11s/batch, test_accuracy=0.161]
 ```
 
-NVIDIA `T4` equipped `n1-highmem-8` (8vCPU, 4 core, 52GB mem)
+NVIDIA `T4` equipped `n1-standard-2` (2vCPU, 2 core, 8GB mem)
 ```
 (base) floriansuess@florians-deeplearning:~$ python main.py benchmark --batch 64 --device cuda
 Files already downloaded and verified
