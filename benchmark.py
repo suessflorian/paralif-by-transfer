@@ -4,20 +4,6 @@ from torch.utils.data import DataLoader
 from torch.cuda.amp import GradScaler, autocast
 from tqdm import tqdm
 
-def find_max_batch_size(model, input_shape, initial_batch_size=32, step=8):
-    batch_size = initial_batch_size
-    while True:
-        try:
-            inputs = torch.randn((batch_size, *input_shape)).to('cuda')
-            model(inputs)
-            batch_size += step
-        except RuntimeError as e:
-            if 'out of memory' in str(e):
-                torch.cuda.empty_cache()
-                return batch_size - step
-            else:
-                raise e
-
 def benchmark(
     model: torch.nn.Module,
     criterion: Callable,
