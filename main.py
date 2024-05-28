@@ -11,6 +11,7 @@ import argparse
 import os
 import csv
 import benchmark
+from torch.cuda.amp import GradScaler, autocast
 from typing import Tuple, Callable
 from torch.utils.data import DataLoader
 from tqdm import tqdm
@@ -221,6 +222,12 @@ def main():
         model.train()
         best_accuracy, best_loss = metadata.accuracy, metadata.loss
 
+        if device == "cuda":
+            torch.backends.cudnn.benchmark = True
+            scaler = GradScaler()
+        else:
+            scaler = None
+
         report = f"./results/train/{dataset}-{variant}-{name}.csv"
         report_gcs = f"results/train/{dataset}-{variant}-{name}.csv"
 
@@ -242,7 +249,7 @@ def main():
                 upload.gcs(report, report_gcs)
             if variant == "ParaLIF":
                 for _ in range(3):
-                    loss, accuracy = evaluate(model, criterion, test_loader, device)
+                    loss, accuracy = evaluate(model, criterion, test_loader, device, scaler)
                     if accuracy >= best_accuracy:
                         best_accuracy = accuracy
                     write_to_csv(report, [0, loss, accuracy])
@@ -251,27 +258,39 @@ def main():
 
         for i in range(1, epochs + 1):
             correct, total = 0, 0
-            with tqdm(train_loader, unit="batch") as progress:
+            with tqdm(train_loader, unit="images", unit_scale=64) as progress: # TODO: hardcoded scale
                 for images, labels in progress:
                     progress.set_description(f"Epoch {i + metadata.epoch}")
                     images, labels = images.to(device), labels.to(device)
-                    outputs = model(images)
-                    loss = criterion(outputs, labels)
+
+                    if scaler:
+                        with autocast():
+                            outputs = model(images)
+                            loss = criterion(outputs, labels)
+                    else:
+                        outputs = model(images)
+                        loss = criterion(outputs, labels)
 
                     _, predicted = torch.max(outputs.data, 1)
                     total += labels.size(0)
                     correct += (predicted == labels).sum().item()
 
-                    optimizer.zero_grad()
-                    loss.backward()
-                    optimizer.step()
+                    optimizer.zero_grad(set_to_none=True)
+
+                    if scaler:
+                        scaler.scale(loss).backward()
+                        scaler.step(optimizer)
+                        scaler.update()
+                    else:
+                        loss.backward()
+                        optimizer.step()
                     progress.set_postfix(train_accuracy=f"{(correct/total):.2f}")
 
             if variant == "ParaLIF":
                 num_runs = 5
                 total_loss, total_accuracy = 0, 0
                 for _ in range(num_runs):
-                    loss, accuracy = evaluate(model, criterion, test_loader, device)
+                    loss, accuracy = evaluate(model, criterion, test_loader, device, scaler)
                     total_loss += loss
                     total_accuracy += accuracy
                     write_to_csv(report, [i + metadata.epoch, loss, accuracy])
@@ -294,7 +313,7 @@ def main():
                         gcs=gcs,
                     )
             else:
-                loss, accuracy = evaluate(model, criterion, test_loader, device)
+                loss, accuracy = evaluate(model, criterion, test_loader, device, scaler)
                 if accuracy >= best_accuracy:
                     best_accuracy = accuracy
                     best_loss = loss
@@ -317,15 +336,24 @@ def main():
         criterion: Callable,
         data_loader: DataLoader,
         device: str = "cpu",
+        scaler: GradScaler = None,
     ) -> Tuple[float, float]:
         model.eval()
         total_loss, correct, total = 0, 0, 0
+
+        (images, labels) = next(iter(train_loader))
+        batch = images.shape[0]
         with torch.no_grad():
-            with tqdm(data_loader, desc="Evaluation", unit="batch") as progress:
+            with tqdm(data_loader, desc="Evaluation", unit="image", unit_scale=batch) as progress:
                 for images, labels in progress:
                     images, labels = images.to(device), labels.to(device)
-                    outputs = model(images)
-                    loss = criterion(outputs, labels)
+                    if scaler:
+                        with autocast():
+                            outputs = model(images)
+                            loss = criterion(outputs, labels)
+                    else:
+                        outputs = model(images)
+                        loss = criterion(outputs, labels)
                     total_loss += loss.item()
                     _, predicted = outputs.max(1)
                     total += labels.size(0)
@@ -391,8 +419,9 @@ def main():
         model = model.to(args.device)
 
         criterion = torch.nn.CrossEntropyLoss()
+        torch.optim.Adamax(model.parameters())
         optimizer = torch.optim.SGD(model.parameters(), lr=args.lr, momentum=0.9, weight_decay=1e-4)
-        train_loader, test_loader = data.loader(args.dataset, preprocess, args.batch)
+        train_loader, test_loader = data.loader(args.dataset, preprocess, args.batch, args.device)
 
         vtrain(
             model,
@@ -448,7 +477,7 @@ def main():
         criterion = torch.nn.CrossEntropyLoss()
         train_loader, test_loader = data.loader(args.dataset, preprocess, 64)
 
-        loss, accuracy = evaluate(
+        evaluate(
             model,
             criterion,
             test_loader,
@@ -490,7 +519,8 @@ def main():
     elif args.command == "benchmark":
         arch, dataset = "vit_b_16", "cifar100"
 
-        model, preprocess = models.vit(arch, dataset, pretrained=False)
+        model, preprocess = models.vit(arch, dataset, pretrained=True)
+        model = freeze.freeze(model, depth=freeze.Depth.THREE)
         train_loader, test_loader = data.loader(dataset, preprocess, args.batch, args.device)
         criterion = torch.nn.CrossEntropyLoss()
         optimizer = torch.optim.SGD(model.parameters(), lr=0.001, momentum=0.9, weight_decay=1e-4)

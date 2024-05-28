@@ -1,5 +1,6 @@
 import torch
 from typing import Callable
+
 from torch.utils.data import DataLoader
 from torch.cuda.amp import GradScaler, autocast
 from tqdm import tqdm
@@ -31,9 +32,6 @@ def benchmark(
             for images, labels in progress:
                 progress.set_description(f"Benchmark")
                 images, labels = images.to(device), labels.to(device)
-                outputs = model(images)
-                loss = criterion(outputs, labels)
-
                 if scaler:
                     with autocast():
                         outputs = model(images)

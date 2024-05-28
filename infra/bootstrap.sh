@@ -8,3 +8,5 @@ python -m pip install pipenv
 
 pipenv requirements > requirements.txt
 pip install --ignore-installed -r requirements.txt
+
+mkdir -p results/train checkpoint

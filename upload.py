@@ -7,4 +7,4 @@ def gcs(local_path: str, gcs_path: str):
     bucket = client.bucket(BUCKET_NAME)
     blob = bucket.blob(gcs_path)
     blob.upload_from_filename(local_path)
-    print(f"Uploaded {local_path} to {gcs_path}...")
+    print(f"Shipped to gcs://{BUCKET_NAME}/{gcs_path}")
