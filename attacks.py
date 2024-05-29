@@ -9,7 +9,6 @@ from tqdm import tqdm
 import matplotlib.pyplot as plt
 import numpy as np
 from skimage.metrics import structural_similarity as ssim
-import copy
 import csv
 
 def sampled(loader: DataLoader, model: torch.nn.Module, device: str, sample: int = 1000) -> DataLoader:
@@ -226,7 +225,11 @@ def perform(
 
         persist(name, variant, dataset, "fgsm", header=["epsilon", "accuracy", "ssim"], results=results)
     elif attack == "deepfool":
-        for epsilon in [0.0002, 0.0004, 0.0008, 0.0016, 0.0032, 0.0064, 0.0128, 0.0256, 0.0512, 0.1024]:
+        epsilons = [0.0002, 0.0004, 0.0008, 0.0016, 0.0032, 0.0064, 0.0128, 0.0256, 0.0512, 0.1024]
+        if name =="vit_b_16":
+            epsilons = [0.0002, 0.0008, 0.0032, 0.0128, 0.0512, 0.1024, 0.2048, 0.4096, 0.8192, 1]
+
+        for epsilon in epsilons:
             method = LinfDeepFoolAttack()
             if variant == "ParaLIF":
                 num_steps = 5
@@ -291,7 +294,11 @@ def perform(
 
         persist(name, variant, dataset, "square@0.1", header=["max_iterations", "accuracy", "ssim"], results=results)
     elif attack == "square":
-        for epsilon in [0.004, 0.005, 0.006, 0.007, 0.01, 0.02, 0.03, 0.5, 1]:
+        epsilons = [0.004, 0.005, 0.006, 0.007, 0.01, 0.02, 0.03, 0.5, 1]
+        if model == "vit_b_16":
+            epsilons = [0.008, 0.0016, 0.0032, 0.0064, 0.0128, 0.0256, 0.512, 1]
+
+        for epsilon in epsilons:
             method = SquareAttack(estimator=artIntermediaryClassifier, eps=epsilon, verbose=False)
             if variant == "ParaLIF":
                 num_steps = 5
