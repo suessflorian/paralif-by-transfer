@@ -10,7 +10,6 @@ import upload
 import argparse
 import os
 import csv
-import benchmark
 from torch.cuda.amp import GradScaler, autocast
 from typing import Tuple, Callable
 from torch.utils.data import DataLoader
@@ -554,25 +553,6 @@ def main():
             results.plot_attack(args.dataset, args.attack)
         else:
             raise ValueError("invalid results type")
-
-    elif args.command == "benchmark":
-        arch, dataset = "vit_b_16", "cifar100"
-
-        model, preprocess = models.vit(arch, dataset, pretrained=True)
-        model = freeze.freeze(model, depth=freeze.Depth.THREE)
-        train_loader, test_loader = data.loader(dataset, preprocess, args.batch, args.device)
-        criterion = torch.nn.CrossEntropyLoss()
-        optimizer = torch.optim.SGD(model.parameters(), lr=0.001, momentum=0.9, weight_decay=1e-4)
-
-        benchmark.benchmark(
-            model,
-            criterion,
-            train_loader,
-            test_loader,
-            optimizer,
-            1,
-            args.device,
-        )
     else:
         raise ValueError("invalid command")
 
