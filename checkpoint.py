@@ -63,20 +63,19 @@ def load(model: ResNet | VisionTransformer | LIFResNetDecoder | ParaLIFResNetDec
         blob = bucket.blob(gcs_path)
         if not blob.exists():
             print("-> nothing found in GCS")
-            return False, model, Metadata(name, 0, 0, float("inf"))
+        else:
+            checkpoint_data = blob.download_as_bytes()
+            checkpoint = torch.load(io.BytesIO(checkpoint_data))
+            model.load_state_dict(checkpoint["state_dict"])
+            metadata = checkpoint["metadata"]
+            return True, model, metadata
 
-        checkpoint_data = blob.download_as_bytes()
-        checkpoint = torch.load(io.BytesIO(checkpoint_data))
-        model.load_state_dict(checkpoint["state_dict"])
-        metadata = checkpoint["metadata"]
-        return True, model, metadata
-    else:
-        print("-> loading from disk")
-        if not os.path.exists(path):
-            print("-> nothing found on disk")
-            return False, model, Metadata(name, 0, 0, float("inf"))
+    print("-> loading from disk")
+    if not os.path.exists(path):
+        print("-> nothing found on disk")
+        return False, model, Metadata(name, 0, 0, float("inf"))
 
-        checkpoint = torch.load(path)
-        model.load_state_dict(checkpoint["state_dict"])
-        metadata = checkpoint["metadata"]
-        return True, model, metadata
+    checkpoint = torch.load(path)
+    model.load_state_dict(checkpoint["state_dict"])
+    metadata = checkpoint["metadata"]
+    return True, model, metadata
