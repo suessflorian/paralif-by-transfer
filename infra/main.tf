@@ -36,7 +36,7 @@ resource "google_compute_instance" "florians-deeplearning" {
     goog-ec-src = "vm_add-tf"
   }
 
-  machine_type = "n1-standard-2"
+  machine_type = "n1-highcpu-8"
   name         = "florians-deeplearning"
 
   network_interface {

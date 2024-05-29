@@ -241,7 +241,7 @@ def main():
                 writer = csv.writer(file)
                 writer.writerow(data)
 
-        best_loss, best_accuracy = evaluate(model, criterion, test_loader, device)
+        best_loss, best_accuracy = evaluate(model, criterion, test_loader, device, scaler)
 
         if metadata.epoch == 0:
             write_to_csv(report, [0, best_loss, best_accuracy])
@@ -419,9 +419,48 @@ def main():
         model = model.to(args.device)
 
         criterion = torch.nn.CrossEntropyLoss()
-        torch.optim.Adamax(model.parameters())
-        optimizer = torch.optim.SGD(model.parameters(), lr=args.lr, momentum=0.9, weight_decay=1e-4)
+        optimizer = torch.optim.AdamW(model.parameters(), lr=args.lr, weight_decay=1e-4)
         train_loader, test_loader = data.loader(args.dataset, preprocess, args.batch, args.device)
+
+        trained = metadata.epoch
+
+        # NOTE: we freeze train the ViT for the first 10 epochs, then drop the learning rate signficantly
+        # and proceed to unfreeze all layers for the final bit of training.
+        freeze_trained = 10
+
+        if freeze_trained - trained > 0:
+            vtrain(
+                model,
+                args.arch,
+                args.dataset,
+                criterion,
+                train_loader,
+                test_loader,
+                optimizer,
+                freeze_trained - trained,
+                metadata,
+                variant="LIF" if args.lif else "ParaLIF" if args.paralif else "",
+                device=args.device,
+                gcs=args.gcs,
+            )
+
+        model, preprocess = models.vit(args.arch, args.dataset)
+        loaded, vanilla, metadata = checkpoint.load(model, args.arch, args.dataset, variant="", gcs=args.gcs)
+
+        if args.lif or args.paralif:
+            if not loaded:
+                raise ValueError("must train vanilla model first... abort")
+            model = convert.convert(vanilla, args.dataset, dest="LIF" if args.lif else "ParaLIF")
+            # NOTE: check if we already have a converted model checkpointed ready to continue on
+            loaded, model, metadata = checkpoint.load(model, args.arch, args.dataset, variant="LIF" if args.lif else "ParaLIF", gcs=args.gcs)
+        else:
+            model = vanilla
+
+        model = freeze.freeze(model, depth=freeze.Depth.ONE)
+        model = model.to(args.device)
+
+        criterion = torch.nn.CrossEntropyLoss()
+        optimizer = torch.optim.AdamW(model.parameters(), lr=args.lr/10, weight_decay=1e-4)
 
         vtrain(
             model,
@@ -484,7 +523,7 @@ def main():
             args.device,
         )
     elif args.command == "attack":
-        model, preprocess = models.resnet(args.arch, args.dataset)
+        model, preprocess = models.vit(args.arch, args.dataset)
         if args.lif or args.paralif:
             model = convert.convert(model, args.dataset, dest="LIF" if args.lif else "ParaLIF")
         loaded, model, metadata = checkpoint.load(model, args.arch, args.dataset, variant="LIF" if args.lif else "ParaLIF" if args.paralif else "", gcs=args.gcs)
