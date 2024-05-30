@@ -19,17 +19,17 @@ def plot_training(dataset: str):
         label = f"{model} ({variant})" if variant != "" else model
         if variant == "ParaLIF":
             grouped_data = data.groupby('epoch')['accuracy'].agg(['min', 'max'])
-            if "resnet18" in model:
+            if "vit_b_16" in model:
                 ax1.fill_between(grouped_data.index, grouped_data['min'], grouped_data['max'], alpha=0.3, label=f'Accuracy - {label}')
             elif "resnet50" in model:
                 ax2.fill_between(grouped_data.index, grouped_data['min'], grouped_data['max'], alpha=0.3, label=f'Accuracy - {label}')
         else:
-            if "resnet18" in model:
+            if "vit_b_16" in model:
                 ax1.plot(data['epoch'], data['accuracy'], label=f'Accuracy - {label}')
             elif "resnet50" in model:
                 ax2.plot(data['epoch'], data['accuracy'], label=f'Accuracy - {label}')
 
-    ax1.set_title(f"Test Accuracy: {dataset} - ResNet-18 Models")
+    ax1.set_title(f"Test Accuracy: {dataset} - ViT-B16 Models")
     ax1.set_xlabel('Epoch')
     ax1.set_ylabel('Accuracy')
     ax1.legend()
